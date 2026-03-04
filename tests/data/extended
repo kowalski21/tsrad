@@ -1,0 +1,43 @@
+# Extended attributes and vendor formats test dictionary
+
+ATTRIBUTE User-Name 1 string
+ATTRIBUTE User-Password 2 string
+ATTRIBUTE NAS-IP-Address 4 ipaddr
+ATTRIBUTE NAS-Port 5 integer
+ATTRIBUTE Service-Type 6 integer
+VALUE Service-Type Login-User 1
+VALUE Service-Type Framed-User 2
+ATTRIBUTE Message-Authenticator 80 octets
+ATTRIBUTE Proxy-State 33 string
+ATTRIBUTE Acct-Status-Type 40 integer
+ATTRIBUTE Acct-Delay-Time 41 integer
+ATTRIBUTE Acct-Session-Id 44 string
+
+# Vendor with non-standard format (type=2, length=1)
+VENDOR BigVendor 99999 format=2,1
+
+BEGIN-VENDOR BigVendor
+ATTRIBUTE BV-String 1 string
+ATTRIBUTE BV-Integer 2 integer
+END-VENDOR BigVendor
+
+# Standard vendor (default format 1,1)
+VENDOR SmallVendor 12345
+
+BEGIN-VENDOR SmallVendor
+ATTRIBUTE SV-Name 1 string
+ATTRIBUTE SV-Port 2 integer
+END-VENDOR SmallVendor
+
+# Vendor with no length field (format=1,0)
+VENDOR CompactVendor 54321 format=1,0
+
+BEGIN-VENDOR CompactVendor
+ATTRIBUTE CV-Data 1 octets
+END-VENDOR CompactVendor
+
+# Extended attributes (RFC 6929)
+ATTRIBUTE Ext-Short-Str 241.1 string
+ATTRIBUTE Ext-Short-Int 241.2 integer
+ATTRIBUTE Ext-Long-Str 243.1 string
+ATTRIBUTE Ext-Long-Int 244.1 integer

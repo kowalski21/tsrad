@@ -1,0 +1,57 @@
+{
+  "name": "tsrad",
+  "version": "1.0.0",
+  "description": "TypeScript RADIUS client/server library — port of pyrad",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts.map",
+    "!dist/**/*.test.*"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc --watch",
+    "test": "tsc && node --test dist/**/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "radius",
+    "aaa",
+    "authentication",
+    "accounting",
+    "rfc2865",
+    "rfc2866",
+    "rfc3576",
+    "radsec",
+    "nas",
+    "freeradius"
+  ],
+  "license": "BSD-3-Clause",
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "knex": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "knex": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^12.6.2",
+    "knex": "^3.1.0",
+    "typescript": "^5.7.0"
+  }
+}
