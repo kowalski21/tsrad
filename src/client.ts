@@ -309,6 +309,7 @@ export class FailoverClient extends Host {
 
   constructor(opts: FailoverClientOptions) {
     super({ dict: opts.dict, logger: opts.logger });
+    if (opts.servers.length === 0) throw new Error('FailoverClient requires at least one server');
     this.strategy = opts.strategy ?? 'failover';
     this.failoverLogger = opts.logger ?? new NullLogger();
 
@@ -326,14 +327,25 @@ export class FailoverClient extends Host {
     }));
   }
 
+  createAuthPacket(opts?: PacketOptions): AuthPacket {
+    return this.clients[0].createAuthPacket(opts);
+  }
+
+  createAcctPacket(opts?: PacketOptions): AcctPacket {
+    return this.clients[0].createAcctPacket(opts);
+  }
+
+  createCoAPacket(opts?: PacketOptions): CoAPacket {
+    return this.clients[0].createCoAPacket(opts);
+  }
+
   /** Send a packet with failover across configured servers. */
   async sendPacket(pkt: Packet): Promise<Packet> {
     const servers = this.getServerOrder();
 
     for (let i = 0; i < servers.length; i++) {
       const client = servers[i];
-      // Update packet secret for this server
-      pkt.secret = client.secret;
+      this.applyServerSecret(pkt, client.secret);
 
       try {
         const reply = await client.sendPacket(pkt);
@@ -350,6 +362,31 @@ export class FailoverClient extends Host {
     }
 
     throw new Timeout('All servers exhausted');
+  }
+
+  /** Re-encrypt secret-bound attributes before trying another server. */
+  private applyServerSecret(pkt: Packet, secret: Buffer): void {
+    if (pkt.secret.equals(secret)) return;
+
+    let password: string | undefined;
+    if (pkt instanceof AuthPacket && pkt.has('User-Password')) {
+      const encrypted = pkt.get('User-Password');
+      if (Array.isArray(encrypted) && Buffer.isBuffer(encrypted[0])) {
+        password = pkt.pwDecrypt(encrypted[0]);
+      }
+    }
+
+    const protectedAttributes: Array<[string, any[]]> = [];
+    for (const key of pkt.keys()) {
+      if (typeof key !== 'string' || key === 'User-Password') continue;
+      if (pkt.dict.get(key)?.encrypt === 2) {
+        protectedAttributes.push([key, pkt.getAttribute(key)]);
+      }
+    }
+
+    pkt.secret = secret;
+    if (password !== undefined) pkt.setPassword(password);
+    for (const [key, values] of protectedAttributes) pkt.set(key, values);
   }
 
   private getServerOrder(): Client[] {

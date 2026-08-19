@@ -113,6 +113,7 @@ export class Server extends Host {
   private inflightCount = 0;
   private inflightResolve: (() => void) | null = null;
   private bound = false;
+  private startupPromises: Promise<void>[] = [];
   private readonly addresses: string[];
   private readonly family?: 'udp4' | 'udp6';
   private readonly verifyPackets: boolean;
@@ -202,7 +203,8 @@ export class Server extends Host {
     if (this.authEnabled) {
       const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processAuth(msg, rinfo, sock));
-      sock.on('error', (err) => this.emitter.emit('error', err));
+      sock.on('error', (err) => this.emitError(err));
+      this.trackStartup(sock);
       this.authSockets.push(sock);
       sock.bind(this.authport, addr);
     }
@@ -210,7 +212,8 @@ export class Server extends Host {
     if (this.acctEnabled) {
       const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processAcct(msg, rinfo, sock));
-      sock.on('error', (err) => this.emitter.emit('error', err));
+      sock.on('error', (err) => this.emitError(err));
+      this.trackStartup(sock);
       this.acctSockets.push(sock);
       sock.bind(this.acctport, addr);
     }
@@ -218,7 +221,8 @@ export class Server extends Host {
     if (this.coaEnabled) {
       const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processCoa(msg, rinfo, sock));
-      sock.on('error', (err) => this.emitter.emit('error', err));
+      sock.on('error', (err) => this.emitError(err));
+      this.trackStartup(sock);
       this.coaSockets.push(sock);
       sock.bind(this.coaport, addr);
     }
@@ -226,17 +230,23 @@ export class Server extends Host {
 
   /** Start the server (non-blocking — sockets are already listening after bind). */
   run(): void {
+    if (this.running) return;
     if (!this.bound) {
       for (const addr of this.addresses) this.bindToAddress(addr);
     }
     this.running = true;
-    this.emitter.emit('ready');
+    void Promise.all(this.startupPromises).then(() => {
+      if (this.running) this.emitter.emit('ready');
+    }).catch(() => {
+      // Socket errors are emitted by the socket-level handler. `listen()` also
+      // receives the rejected startup promise directly.
+    });
   }
 
   /** Promise-based startup for applications that prefer async initialization. */
   async listen(): Promise<void> {
     this.run();
-    await new Promise<void>(resolve => setImmediate(resolve));
+    await Promise.all(this.startupPromises);
   }
 
   /** Stop the server immediately and close all sockets. */
@@ -279,7 +289,27 @@ export class Server extends Host {
     this.authSockets = [];
     this.acctSockets = [];
     this.coaSockets = [];
+    this.startupPromises = [];
     this.bound = false;
+  }
+
+  private trackStartup(sock: dgram.Socket): void {
+    const startup = new Promise<void>((resolve, reject) => {
+      sock.once('listening', resolve);
+      sock.once('error', reject);
+    });
+    // `run()`/`listen()` observe the original promise; this prevents a bind
+    // failure from becoming an unhandled rejection before either is called.
+    void startup.catch(() => {});
+    this.startupPromises.push(startup);
+  }
+
+  private emitError(err: Error): void {
+    if (this.emitter.listenerCount('error') > 0) {
+      this.emitter.emit('error', err);
+    } else {
+      this.serverLogger.error(err.message, { error: err });
+    }
   }
 
   private cleanupResources(): void {
@@ -545,7 +575,7 @@ export class Server extends Host {
         this.serverMetrics.increment('radius_auth_total', { type: 'status-server' });
         this.processWithTracking(() =>
           this.runWithMiddleware(pkt, this.authMiddleware, this.handleStatusServer),
-        ).catch(err => this.emitter.emit('error', err));
+        ).catch(err => this.emitError(err));
         return;
       }
 
@@ -558,10 +588,10 @@ export class Server extends Host {
         this.runWithMiddleware(pkt, this.authMiddleware, this.handleAuthPacket),
       ).then(() => {
         this.serverMetrics.histogram('radius_request_duration_ms', Date.now() - startTime, { type: 'auth' });
-      }).catch(err => this.emitter.emit('error', err));
+      }).catch(err => this.emitError(err));
     } catch (err) {
       if (err instanceof ServerPacketError || err instanceof PacketError) {
-        this.emitter.emit('error', err);
+        this.emitError(err);
       } else {
         throw err;
       }
@@ -590,11 +620,11 @@ export class Server extends Host {
             const reply = this.createReplyPacket(p, { code: AccountingResponse });
             this.sendReply(reply);
           }),
-        ).catch(err => this.emitter.emit('error', err));
+        ).catch(err => this.emitError(err));
         return;
       }
 
-      if (pkt.code !== AccountingRequest && pkt.code !== AccountingResponse) {
+      if (pkt.code !== AccountingRequest) {
         throw new ServerPacketError('Received non-accounting packet on accounting port');
       }
 
@@ -603,10 +633,10 @@ export class Server extends Host {
         this.runWithMiddleware(pkt, this.acctMiddleware, this.handleAcctPacket),
       ).then(() => {
         this.serverMetrics.histogram('radius_request_duration_ms', Date.now() - startTime, { type: 'acct' });
-      }).catch(err => this.emitter.emit('error', err));
+      }).catch(err => this.emitError(err));
     } catch (err) {
       if (err instanceof ServerPacketError || err instanceof PacketError) {
-        this.emitter.emit('error', err);
+        this.emitError(err);
       } else {
         throw err;
       }
@@ -633,20 +663,20 @@ export class Server extends Host {
           this.runWithMiddleware(pkt, this.coaMiddleware, this.handleCoaPacket),
         ).then(() => {
           this.serverMetrics.histogram('radius_request_duration_ms', Date.now() - startTime, { type: 'coa' });
-        }).catch(err => this.emitter.emit('error', err));
+        }).catch(err => this.emitError(err));
       } else if (pkt.code === DisconnectRequest) {
         this.serverMetrics.increment('radius_disconnect_total');
         this.processWithTracking(() =>
           this.runWithMiddleware(pkt, this.coaMiddleware, this.handleDisconnectPacket),
         ).then(() => {
           this.serverMetrics.histogram('radius_request_duration_ms', Date.now() - startTime, { type: 'disconnect' });
-        }).catch(err => this.emitter.emit('error', err));
+        }).catch(err => this.emitError(err));
       } else {
         throw new ServerPacketError('Received non-coa packet on coa port');
       }
     } catch (err) {
       if (err instanceof ServerPacketError || err instanceof PacketError) {
-        this.emitter.emit('error', err);
+        this.emitError(err);
       } else {
         throw err;
       }

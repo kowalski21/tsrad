@@ -19,12 +19,19 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
+    "typecheck:src": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit --target ES2022 --module Node16 --moduleResolution Node16 --strict examples/client.ts examples/server.ts",
+    "typecheck": "npm run typecheck:src && npm run typecheck:examples",
     "dev": "tsc --watch",
-    "test": "npm run build && npm run test:compiled",
-    "test:compiled": "node --test dist/**/*.test.js",
-    "test:db": "npm run build && node --test dist/db.test.js",
-    "test:integration": "npm run build && node --test dist/integration.test.js",
+    "clean:test": "node -e \"require('node:fs').rmSync('.test-dist', { recursive: true, force: true })\"",
+    "test:compile": "npm run clean:test && tsc -p tsconfig.test.json",
+    "test": "npm run test:compile && node --test .test-dist/*.test.js",
+    "test:compiled": "node --test .test-dist/*.test.js",
+    "test:db": "npm run test:compile && node --test .test-dist/db.test.js",
+    "test:integration": "npm run test:compile && node --test .test-dist/integration.test.js",
+    "test:e2e:transport": "npm run test:compile && node --test .test-dist/e2e.test.js",
+    "test:package": "npm run build && node scripts/package-e2e.cjs",
+    "test:e2e": "npm run test:e2e:transport && npm run test:package",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -41,7 +48,7 @@
   ],
   "license": "BSD-3-Clause",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "peerDependencies": {
     "knex": ">=2.0.0"
@@ -55,7 +62,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "better-sqlite3": "^12.6.2",
-    "knex": "^3.1.0",
+    "knex": "^3.3.0",
     "typescript": "^5.7.0"
   }
 }

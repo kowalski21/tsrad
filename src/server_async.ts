@@ -15,7 +15,7 @@ export class ServerAsync extends Server {
     if (addresses) {
       for (const address of addresses) this.bindToAddress(address);
     }
-    this.run();
+    await this.listen();
   }
 
   async deinitializeTransports(): Promise<void> {

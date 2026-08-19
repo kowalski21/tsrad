@@ -17,15 +17,17 @@ interface DictNode {
 export class DictFile implements Iterable<string> {
   private stack: DictNode[] = [];
 
-  constructor(file: string) {
-    this.readNode(file);
+  constructor(file: string, text?: string) {
+    if (text === undefined) {
+      this.readNode(file);
+    } else {
+      this.stack.push({ name: file, lines: text.split('\n'), current: 0, dir: process.cwd() });
+    }
   }
 
   /** Create a dictionary from inline text (useful for tests and small services). */
   static fromText(text: string, name = '<inline>'): DictFile {
-    const file = new DictFile(name);
-    file.stack = [{ name, lines: text.split('\n'), current: 0, dir: process.cwd() }];
-    return file;
+    return new DictFile(name, text);
   }
 
   private readNode(file: string): void {

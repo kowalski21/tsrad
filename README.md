@@ -22,7 +22,7 @@ tsrad is a faithful port of pyrad, the most battle-tested Python RADIUS library,
 
 **Buffers, not strings, for secrets.** Shared secrets are binary data. tsrad enforces `Buffer` for all secrets to prevent encoding bugs that cause authentication failures. This is a deliberate friction — `Buffer.from('secret')` is slightly more verbose than a bare string, but it eliminates an entire class of interoperability bugs.
 
-**Zero runtime dependencies.** tsrad uses only Node.js built-in modules (`node:dgram`, `node:crypto`, `node:fs`, `node:path`, `node:events`). No npm dependencies means no supply chain risk, no version conflicts, no transitive vulnerabilities. The only dev dependencies are TypeScript and `@types/node`.
+**Dependency-light core.** The RADIUS transports use only Node.js built-in modules. Database integration uses the optional `knex` peer dependency; SQLite and TypeScript tooling are development-only dependencies.
 
 **Subclass, don't configure.** The server uses a handler pattern: you subclass `Server` and override `handleAuthPacket()`, `handleAcctPacket()`, etc. This is more explicit than callback registration and gives you full control over the request lifecycle. Each handler receives the parsed packet with source info attached — you decode attributes, make your authorization decision, build a reply, and send it back.
 
@@ -62,7 +62,7 @@ All packets share the same attribute storage, encoding, and decoding logic. The 
 
 ### Prerequisites
 
-- Node.js >= 18 (uses `node:test` built-in test runner)
+- Node.js >= 20 (required by the database test driver)
 - TypeScript >= 5.7
 
 ### Setup
@@ -82,16 +82,19 @@ npx tsc
 npm run dev
 ```
 
-TypeScript source lives in `src/`, compiled JavaScript goes to `dist/`. The tsconfig targets ES2022 with Node16 module resolution and strict mode enabled. Output uses Node16's native ESM package layout.
+TypeScript source lives in `src/`, compiled JavaScript goes to `dist/`. The tsconfig targets ES2022 with Node16 module resolution and strict mode enabled. The published package currently uses CommonJS output.
 
 ### Run tests
 
 ```bash
-# Build first, then test
-npx tsc && npm test
+# Compile tests into a clean output directory, then run them
+npm test
+
+# Real transport-level E2E tests
+npm run test:e2e
 ```
 
-Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). There are 304 tests across the source test files covering every module:
+Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). There are 310 tests across the source test files covering every module:
 
 | Test file | Tests | Coverage |
 |-----------|-------|----------|
@@ -103,6 +106,7 @@ Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). The
 | `client.test.ts` | 8 | Construction, packet creation, timeout with real UDP |
 | `server.test.ts` | 12 | Construction, auth/acct round-trip integration, error handling |
 | `db.test.ts` | 25 | Schema, operators, queries, PAP/CHAP auth, acct, groups, DatabaseServer integration |
+| `e2e.test.ts` | 6 | UDP auth/accounting/CoA, IPv6, proxy/failover secrets, bind errors, RadSec TLS |
 
 The integration tests in `server.test.ts` spin up a real UDP server and client on localhost, so they test the full encode-send-receive-decode-reply cycle.
 
