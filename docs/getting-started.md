@@ -116,7 +116,9 @@ tsrad/
 │   ├── packet.ts       # Core packet classes (Packet, AuthPacket, AcctPacket, CoAPacket)
 │   ├── host.ts         # Base Host class
 │   ├── client.ts       # RADIUS client with retry/timeout
-│   └── server.ts       # RADIUS server with handler pattern
+│   ├── client_async.ts # Promise-based async client API
+│   ├── server.ts       # RADIUS server with handler pattern
+│   └── server_async.ts # Async server lifecycle API
 ├── docs/               # This documentation
 ├── package.json
 └── tsconfig.json
@@ -130,6 +132,9 @@ tsrad/
 | RFC 2866 | RADIUS Accounting | Full |
 | RFC 2868 | RADIUS Tunnel Attributes (salt encryption) | Full |
 | RFC 3576 | Dynamic Authorization (CoA/Disconnect) | Full |
+| RFC 3579 | Message-Authenticator | Full |
+| RFC 6614 | RADIUS over TLS (RadSec) | Full |
+| RFC 6929 | Extended Attributes | Full |
 
 ## Next Steps
 
@@ -138,3 +143,4 @@ tsrad/
 - [Dictionary Guide](./dictionary.md) — loading and understanding dictionary files
 - [Packets Guide](./packets.md) — working with packets and attributes
 - [API Reference](./api-reference.md) — complete API surface
+- [README](../README.md) — database, proxy, RadSec, IPv6, and advanced examples

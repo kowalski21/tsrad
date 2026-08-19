@@ -2,7 +2,7 @@
 
 A TypeScript RADIUS client/server library. Complete port of [pyrad](https://github.com/pyradius/pyrad) to idiomatic TypeScript.
 
-Implements RFC 2865 (Authentication), RFC 2866 (Accounting), RFC 2868 (Tunnel Attributes), and RFC 3576 (Dynamic Authorization / CoA).
+Implements RFC 2865, RFC 2866, RFC 2868, RFC 3576, RFC 3579, RFC 5080, RFC 5997, RFC 6614, and RFC 6929.
 
 ---
 
@@ -82,7 +82,7 @@ npx tsc
 npm run dev
 ```
 
-TypeScript source lives in `src/`, compiled JavaScript goes to `dist/`. The tsconfig targets ES2022 with Node16 module resolution and strict mode enabled. Output is CommonJS.
+TypeScript source lives in `src/`, compiled JavaScript goes to `dist/`. The tsconfig targets ES2022 with Node16 module resolution and strict mode enabled. Output uses Node16's native ESM package layout.
 
 ### Run tests
 
@@ -91,7 +91,7 @@ TypeScript source lives in `src/`, compiled JavaScript goes to `dist/`. The tsco
 npx tsc && npm test
 ```
 
-Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). There are 303 tests across 14 test files covering every module:
+Tests use Node.js built-in test runner (`node:test` + `node:assert/strict`). There are 304 tests across the source test files covering every module:
 
 | Test file | Tests | Coverage |
 |-----------|-------|----------|
@@ -118,9 +118,15 @@ tsrad/
     tools.ts            Attribute type encoding/decoding (RFC 2865 types)
     packet.ts           Packet classes, authenticator, encryption
     host.ts             Base class for Client and Server
-    client.ts           RADIUS client with retry/timeout
+    client.ts           RADIUS client with retry/timeout and IPv6 binding
+    client_async.ts     Promise-based async client compatibility API
     server.ts           RADIUS server with handler dispatch
+    server_async.ts     Async server lifecycle compatibility API
     db.ts               Database integration (knex, rlm_sql compatible)
+  examples/
+    client.ts           Environment-configured client example
+    server.ts           Environment-configured server example
+  .env.example          Copy to .env for local examples
     *.test.ts           Tests (co-located with source)
   tests/
     data/
@@ -170,6 +176,30 @@ const dict = new Dictionary(path.join(dataDir, 'realistic'));
 ---
 
 ## Usage
+
+For local development or small services, a dictionary can be embedded directly:
+
+```ts
+const dict = Dictionary.fromText(`
+ATTRIBUTE User-Name 1 string
+ATTRIBUTE User-Password 2 string
+`);
+```
+
+For deployed applications, `clientOptionsFromEnv()` and `serverOptionsFromEnv()` map
+the `RADIUS_*` variables in `.env.example` to validated options. Pass a second object
+to override any generated option.
+
+### Contents
+
+- [Dictionary](#loading-a-dictionary)
+- [Client authentication](#pap-authentication-client)
+- [Accounting](#accounting)
+- [CoA and Disconnect](#coa-change-of-authorization)
+- [Server](#building-a-radius-server)
+- [Database](#database-backed-auth-and-accounting)
+- [Timeouts and retries](#timeout-handling)
+- [Migration from pyrad](#migrating-from-pyrad)
 
 ### Loading a dictionary
 
@@ -278,7 +308,7 @@ const client = new Client({
   secret: Buffer.from('testing123'),
   dict,
   timeout: 5,    // seconds per attempt
-  retries: 3,    // retry count
+  retries: 3,    // total attempts, including the initial send
 });
 
 try {
@@ -356,6 +386,38 @@ console.log(reply.code === AccessAccept ? 'OK' : 'FAIL');
 client.close();
 ```
 
+### IPv6 and local binding
+
+Transport family is inferred from the server address, or can be selected
+explicitly. Clients can bind to a local address or port:
+
+```ts
+const client = new Client({
+  server: '2001:db8::10',
+  family: 'udp6',
+  localAddress: '2001:db8::20',
+  localPort: 0,
+  secret: Buffer.from('testing123'),
+  dict,
+});
+
+client.bind('2001:db8::20');
+```
+
+Servers infer `udp4` or `udp6` from each address in `addresses`.
+
+### Async APIs
+
+Node's UDP API is already event-driven, but tsrad also exports `ClientAsync`
+and `ServerAsync`. `ClientAsync` has the same Promise-based API as `Client`;
+`ServerAsync` adds explicit transport lifecycle methods:
+
+```ts
+const server = new ServerAsync({ dict, hosts });
+await server.initializeTransports(['127.0.0.1']);
+await server.deinitializeTransports();
+```
+
 ### Message-Authenticator
 
 RFC 3579 defines Message-Authenticator — an HMAC-MD5 signature over the entire packet. Required for EAP, recommended for all Access-Request packets to prevent spoofing.
@@ -384,6 +446,10 @@ const reply2 = await client.sendPacket(req2);
 
 client.close();
 ```
+
+When `enforceMA` is enabled, replies must also contain a valid
+Message-Authenticator or `sendPacket()` will reject them. For lower-level
+verification, use `req.verifyReply(reply, rawReply, true)`.
 
 On the server side, verify it:
 
@@ -1121,6 +1187,17 @@ await createSchema(db);
 
 #### Seed users
 
+For application setup, `seedUser()` provides a typed convenience wrapper:
+
+```ts
+import { seedUser } from 'tsrad';
+
+await seedUser(db, 'alice@isp.net', 'secret123', {
+  checks: { 'NAS-Port': 1 },
+  replies: { 'Session-Timeout': 86400 },
+});
+```
+
 ```ts
 // Add a user with cleartext password
 await db('radcheck').insert({
@@ -1413,14 +1490,14 @@ const client = new Client({
   secret: Buffer.from('testing123'),
   dict,
   timeout: 2,    // 2 seconds per attempt
-  retries: 3,    // 3 retries = 4 total attempts = 8 seconds max
+  retries: 3,    // 3 total attempts = up to 6 seconds at a 2-second timeout
 });
 
 try {
   const reply = await client.sendPacket(req);
 } catch (err) {
   if (err instanceof Timeout) {
-    console.error('RADIUS server unreachable after 4 attempts (8 seconds)');
+    console.error('RADIUS server unreachable after 3 attempts (6 seconds)');
   } else {
     throw err;  // unexpected error
   }
@@ -1428,6 +1505,35 @@ try {
   client.close();
 }
 ```
+
+### Migrating from pyrad
+
+The core operations map directly to the TypeScript API:
+
+| pyrad | tsrad |
+|---|---|
+| `CreateAuthPacket()` | `createAuthPacket()` |
+| `CreateAcctPacket()` | `createAcctPacket()` |
+| `CreateCoAPacket()` | `createCoAPacket()` |
+| `SendPacket()` | `sendPacket()` |
+| `PwCrypt()` | `pwCrypt()` |
+| `PwDecrypt()` | `pwDecrypt()` |
+| `ReplyPacket()` | `replyPacket()` |
+| `VerifyReply()` | `verifyReply()` |
+| `Run()` | `run()` or `listen()` |
+| `BindToAddress()` | `bindToAddress()` |
+
+Uppercase compatibility aliases are also available for gradual migrations.
+Secrets are intentionally typed as `Buffer` values in tsrad.
+
+### Security checklist
+
+- Use a separate shared secret for every NAS.
+- Keep secrets outside source control; use a secret manager or environment variables.
+- Keep `verifyPackets` enabled on servers unless interoperability testing requires otherwise.
+- Use `enforceMA: true` for EAP and deployments that require signed Access-Request and reply packets.
+- Restrict `hosts` to known NAS addresses instead of using a wildcard in production.
+- Use RadSec when traffic crosses untrusted networks.
 
 ### Complete client-server round-trip example
 
@@ -1584,7 +1690,9 @@ encodeAttr('abinary', 'family=ipv4 action=accept direction=in src=10.0.0.0/24');
 | RFC 2866 | RADIUS Accounting | Full: Accounting-Request/Response, authenticator verification, Acct-Delay-Time |
 | RFC 2868 | RADIUS Tunnel Attributes | Full: tagged attributes, salt encryption (encrypt=2) |
 | RFC 3576 | Dynamic Authorization (CoA) | Full: CoA-Request/ACK/NAK, Disconnect-Request/ACK/NAK |
-| RFC 3579 | RADIUS EAP Support | Partial: Message-Authenticator (HMAC-MD5) verification |
+| RFC 3579 | RADIUS EAP / Message-Authenticator | Message-Authenticator generation and verification |
+| RFC 6614 | RADIUS over TLS (RadSec) | Full |
+| RFC 6929 | Extended Attributes | Full |
 
 ## License
 

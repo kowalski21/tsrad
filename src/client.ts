@@ -40,7 +40,7 @@ export interface ClientOptions {
   secret: Buffer;
   /** RADIUS dictionary */
   dict?: Dictionary;
-  /** Number of retries (default 3) */
+  /** Total number of send attempts, matching pyrad (default 3). */
   retries?: number;
   /** Timeout in seconds (default 5) */
   timeout?: number;
@@ -48,6 +48,11 @@ export interface ClientOptions {
   enforceMA?: boolean;
   /** Logger instance */
   logger?: Logger;
+  /** UDP socket family. If omitted, inferred from the server address. */
+  family?: 'udp4' | 'udp6';
+  /** Optional local address and port to bind before sending. */
+  localAddress?: string;
+  localPort?: number;
 }
 
 interface PendingRequest {
@@ -66,6 +71,9 @@ export class Client extends Host {
   retries: number;
   timeout: number;
   enforceMA: boolean;
+  family: 'udp4' | 'udp6';
+  private localAddress?: string;
+  private localPort?: number;
 
   private socket: dgram.Socket | null = null;
   private pending = new Map<number, PendingRequest>();
@@ -84,6 +92,9 @@ export class Client extends Host {
     this.retries = opts.retries ?? 3;
     this.timeout = opts.timeout ?? 5;
     this.enforceMA = opts.enforceMA ?? false;
+    this.family = opts.family ?? (opts.server.includes(':') ? 'udp6' : 'udp4');
+    this.localAddress = opts.localAddress;
+    this.localPort = opts.localPort;
     this.clientLogger = opts.logger ?? new NullLogger();
   }
 
@@ -127,6 +138,12 @@ export class Client extends Host {
     }
   }
 
+  // Compatibility aliases for pyrad's public naming.
+  CreateAuthPacket(opts?: PacketOptions): AuthPacket { return this.createAuthPacket(opts); }
+  CreateAcctPacket(opts?: PacketOptions): AcctPacket { return this.createAcctPacket(opts); }
+  CreateCoAPacket(opts?: PacketOptions): CoAPacket { return this.createCoAPacket(opts); }
+  SendPacket(pkt: Packet): Promise<Packet> { return this.sendPacket(pkt); }
+
   /** Close the underlying UDP socket */
   close(): void {
     // Cancel all pending requests
@@ -143,10 +160,22 @@ export class Client extends Host {
     }
   }
 
+  /** Bind the client socket to a local address, matching pyrad.Client.bind(). */
+  bind(address: string, port = 0): void {
+    this.close();
+    this.family = address.includes(':') ? 'udp6' : 'udp4';
+    this.localAddress = address;
+    this.localPort = port;
+    this.getSocket();
+  }
+
   private getSocket(): dgram.Socket {
     if (!this.socket) {
-      this.socket = dgram.createSocket('udp4');
+      this.socket = dgram.createSocket(this.family);
       this.socket.on('message', (msg) => this.handleResponse(msg));
+      if (this.localAddress !== undefined || this.localPort !== undefined) {
+        this.socket.bind(this.localPort ?? 0, this.localAddress);
+      }
     }
     return this.socket;
   }
@@ -160,10 +189,10 @@ export class Client extends Host {
 
     try {
       const reply = req.originalPkt.createReply({ packet: msg });
-      if (req.originalPkt.verifyReply(reply, msg)) {
-        if (req.originalPkt.authenticator) {
-          reply.requestAuthenticator = req.originalPkt.authenticator;
-        }
+      if (req.originalPkt.authenticator) {
+        reply.requestAuthenticator = req.originalPkt.authenticator;
+      }
+      if (req.originalPkt.verifyReply(reply, msg, this.enforceMA)) {
         clearTimeout(req.timer);
         this.pending.delete(id);
         req.resolve(reply);
@@ -183,6 +212,7 @@ export class Client extends Host {
   }
 
   private async sendToPort(pkt: Packet, port: number): Promise<Packet> {
+    if (this.retries <= 0) return Promise.reject(new Timeout());
     const sock = this.getSocket();
 
     // Assign an available packet ID
@@ -237,7 +267,8 @@ export class Client extends Host {
         });
       };
 
-      attempt(this.retries - 1, raw);
+      // Match pyrad: retries is the total number of send attempts.
+      attempt(Math.max(0, this.retries - 1), raw);
     });
   }
 }

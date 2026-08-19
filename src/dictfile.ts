@@ -21,6 +21,13 @@ export class DictFile implements Iterable<string> {
     this.readNode(file);
   }
 
+  /** Create a dictionary from inline text (useful for tests and small services). */
+  static fromText(text: string, name = '<inline>'): DictFile {
+    const file = new DictFile(name);
+    file.stack = [{ name, lines: text.split('\n'), current: 0, dir: process.cwd() }];
+    return file;
+  }
+
   private readNode(file: string): void {
     const parentDir = this.curDir();
     let fname: string;

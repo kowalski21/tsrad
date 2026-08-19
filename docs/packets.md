@@ -135,6 +135,16 @@ pkt.delete('User-Name');
 pkt.has('User-Name');     // false
 ```
 
+For common request fields, typed convenience helpers avoid indexing and casting:
+
+```ts
+pkt.setUserName('alice');
+pkt.setPassword('correct horse battery staple');
+pkt.setNasIpAddress('192.0.2.10');
+const username = pkt.getStringAttribute('User-Name');
+const nasPort = pkt.getNumberAttribute('NAS-Port', 0);
+```
+
 ### Listing all attributes
 
 ```ts

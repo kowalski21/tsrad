@@ -84,6 +84,10 @@ export interface ServerOptions {
   rateLimit?: RateLimitConfig | false;
   /** Metrics collector */
   metrics?: Metrics;
+  /** UDP socket family. If omitted, inferred from each listen address. */
+  family?: 'udp4' | 'udp6';
+  /** Verify accounting/CoA authenticators and present Message-Authenticators. */
+  verifyPackets?: boolean;
 }
 
 export interface RadiusPacket extends Packet {
@@ -108,6 +112,10 @@ export class Server extends Host {
   private emitter = new EventEmitter();
   private inflightCount = 0;
   private inflightResolve: (() => void) | null = null;
+  private bound = false;
+  private readonly addresses: string[];
+  private readonly family?: 'udp4' | 'udp6';
+  private readonly verifyPackets: boolean;
 
   private dedupCache: DedupCache | null = null;
   private rateLimiter: RateLimiter | null = null;
@@ -140,6 +148,9 @@ export class Server extends Host {
     this.coaEnabled = opts?.coaEnabled ?? false;
     this.serverLogger = opts?.logger ?? new NullLogger();
     this.serverMetrics = opts?.metrics ?? new NullMetrics();
+    this.addresses = opts?.addresses ?? ['0.0.0.0'];
+    this.family = opts?.family;
+    this.verifyPackets = opts?.verifyPackets ?? true;
 
     // Dedup
     if (opts?.dedupTtl !== false) {
@@ -155,9 +166,7 @@ export class Server extends Host {
     }
 
     if (opts?.addresses) {
-      for (const addr of opts.addresses) {
-        this.bindToAddress(addr);
-      }
+      for (const addr of this.addresses) this.bindToAddress(addr);
     }
   }
 
@@ -189,8 +198,9 @@ export class Server extends Host {
 
   /** Bind to an IP address. Call before run(). */
   bindToAddress(addr: string): void {
+    this.bound = true;
     if (this.authEnabled) {
-      const sock = dgram.createSocket('udp4');
+      const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processAuth(msg, rinfo, sock));
       sock.on('error', (err) => this.emitter.emit('error', err));
       this.authSockets.push(sock);
@@ -198,7 +208,7 @@ export class Server extends Host {
     }
 
     if (this.acctEnabled) {
-      const sock = dgram.createSocket('udp4');
+      const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processAcct(msg, rinfo, sock));
       sock.on('error', (err) => this.emitter.emit('error', err));
       this.acctSockets.push(sock);
@@ -206,7 +216,7 @@ export class Server extends Host {
     }
 
     if (this.coaEnabled) {
-      const sock = dgram.createSocket('udp4');
+      const sock = dgram.createSocket(this.family ?? (addr.includes(':') ? 'udp6' : 'udp4'));
       sock.on('message', (msg, rinfo) => this.processCoa(msg, rinfo, sock));
       sock.on('error', (err) => this.emitter.emit('error', err));
       this.coaSockets.push(sock);
@@ -216,8 +226,17 @@ export class Server extends Host {
 
   /** Start the server (non-blocking — sockets are already listening after bind). */
   run(): void {
+    if (!this.bound) {
+      for (const addr of this.addresses) this.bindToAddress(addr);
+    }
     this.running = true;
     this.emitter.emit('ready');
+  }
+
+  /** Promise-based startup for applications that prefer async initialization. */
+  async listen(): Promise<void> {
+    this.run();
+    await new Promise<void>(resolve => setImmediate(resolve));
   }
 
   /** Stop the server immediately and close all sockets. */
@@ -260,6 +279,7 @@ export class Server extends Host {
     this.authSockets = [];
     this.acctSockets = [];
     this.coaSockets = [];
+    this.bound = false;
   }
 
   private cleanupResources(): void {
@@ -324,6 +344,14 @@ export class Server extends Host {
     pkt.fd.send(data, pkt.source.port, pkt.source.address);
   }
 
+  // Compatibility aliases for pyrad's public naming.
+  BindToAddress(address: string): void { this.bindToAddress(address); }
+  Run(): void { this.run(); }
+  CreateReplyPacket(pkt: RadiusPacket, opts?: PacketOptions): RadiusPacket {
+    return this.createReplyPacket(pkt, opts);
+  }
+  SendReply(pkt: RadiusPacket): void { this.sendReply(pkt); }
+
   // ---- Server-side CoA/Disconnect sender ----
 
   /** Send a CoA-Request to a NAS and wait for reply. */
@@ -383,9 +411,30 @@ export class Server extends Host {
   // ---- Internal processing ----
 
   private addSecret(pkt: RadiusPacket): void {
-    const host = this.hosts.get(pkt.source.address) ?? this.hosts.get('0.0.0.0');
+    const host = this.hosts.get(pkt.source.address)
+      ?? this.hosts.get(pkt.source.address.includes(':') ? '::' : '0.0.0.0');
     if (!host) throw new ServerPacketError('Received packet from unknown host');
     pkt.secret = host.secret;
+  }
+
+  /** Validate request authenticity after the NAS secret has been assigned. */
+  private verifyRequest(pkt: RadiusPacket): void {
+    if (!this.verifyPackets) return;
+    try {
+      if (pkt instanceof AcctPacket && !pkt.verifyAcctRequest()) {
+        throw new ServerPacketError('Accounting request authenticator is invalid');
+      }
+      if (pkt instanceof CoAPacket && !pkt.verifyCoARequest()) {
+        throw new ServerPacketError('CoA request authenticator is invalid');
+      }
+      // Access-Request and Status-Server authenticators are random by design.
+      if (pkt.messageAuthenticator && !pkt.verifyMessageAuthenticator()) {
+        throw new ServerPacketError('Message-Authenticator is invalid');
+      }
+    } catch (err) {
+      if (err instanceof ServerPacketError) throw err;
+      throw new ServerPacketError(`Request authentication failed: ${String(err)}`);
+    }
   }
 
   private async runWithMiddleware(
@@ -486,6 +535,7 @@ export class Server extends Host {
       pkt.source = { address: rinfo.address, port: rinfo.port };
       pkt.fd = sock;
       this.addSecret(pkt);
+      this.verifyRequest(pkt);
 
       // Dedup check
       if (!this.checkDedup(rinfo.address, rinfo.port, pkt.id, sock)) return;
@@ -528,6 +578,7 @@ export class Server extends Host {
       pkt.source = { address: rinfo.address, port: rinfo.port };
       pkt.fd = sock;
       this.addSecret(pkt);
+      this.verifyRequest(pkt);
 
       if (!this.checkDedup(rinfo.address, rinfo.port, pkt.id, sock)) return;
 
@@ -572,6 +623,7 @@ export class Server extends Host {
       pkt.source = { address: rinfo.address, port: rinfo.port };
       pkt.fd = sock;
       this.addSecret(pkt);
+      this.verifyRequest(pkt);
 
       if (!this.checkDedup(rinfo.address, rinfo.port, pkt.id, sock)) return;
 

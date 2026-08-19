@@ -19,8 +19,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
     "dev": "tsc --watch",
-    "test": "tsc && node --test dist/**/*.test.js",
+    "test": "npm run build && npm run test:compiled",
+    "test:compiled": "node --test dist/**/*.test.js",
+    "test:db": "npm run build && node --test dist/db.test.js",
+    "test:integration": "npm run build && node --test dist/integration.test.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

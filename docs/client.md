@@ -30,9 +30,12 @@ const client = new Client({
 | `authport` | `number` | `1812` | Authentication port |
 | `acctport` | `number` | `1813` | Accounting port |
 | `coaport` | `number` | `3799` | CoA/Disconnect port |
-| `retries` | `number` | `3` | Number of retries before timeout |
+| `retries` | `number` | `3` | Total send attempts, including the initial attempt |
 | `timeout` | `number` | `5` | Timeout per attempt in seconds |
-| `enforceMA` | `boolean` | `false` | Auto-add Message-Authenticator to auth packets |
+| `enforceMA` | `boolean` | `false` | Add Message-Authenticator to auth packets and require it in replies |
+| `family` | `'udp4' \| 'udp6'` | inferred | UDP socket family |
+| `localAddress` | `string` | — | Local address to bind |
+| `localPort` | `number` | — | Local port to bind |
 
 ## Authentication (Access-Request)
 
@@ -208,6 +211,25 @@ Always close the client when done to release the UDP socket:
 
 ```ts
 client.close();
+```
+
+## Local binding and IPv6
+
+Use `bind()` when the client must use a specific local interface or port:
+
+```ts
+client.bind('192.168.1.20', 0);
+```
+
+IPv6 is supported through `udp6`:
+
+```ts
+const client = new Client({
+  server: '2001:db8::10',
+  family: 'udp6',
+  secret: Buffer.from('secret'),
+  dict,
+});
 ```
 
 ## Port Selection
