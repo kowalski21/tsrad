@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createRequire } = require('node:module');
 const { execFileSync } = require('node:child_process');
 
 const projectDir = path.resolve(__dirname, '..');
@@ -12,16 +13,41 @@ const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 async function main() {
   try {
-    execFileSync(npm, ['pack', '--pack-destination', tempDir], {
+    execFileSync(npm, ['pack', '--dry-run=false', '--pack-destination', tempDir], {
       cwd: projectDir,
       stdio: 'ignore',
     });
     const tarball = path.join(tempDir, `${packageJson.name}-${packageJson.version}.tgz`);
-    execFileSync(npm, ['install', '--prefix', consumerDir, tarball, '--ignore-scripts'], {
-      stdio: 'ignore',
+    fs.mkdirSync(consumerDir);
+    execFileSync(npm, ['install', '--dry-run=false', '--prefix', consumerDir, tarball, '--ignore-scripts'], {
+      stdio: 'inherit',
     });
 
-    const tsrad = require(path.join(consumerDir, 'node_modules', 'tsrad'));
+    // Core TypeScript consumers must not need the optional Knex peer.
+    fs.writeFileSync(path.join(consumerDir, 'smoke.ts'), [
+      "import { Client, Dictionary } from 'tsrad';",
+      "const dict = Dictionary.fromText('ATTRIBUTE User-Name 1 string');",
+      "const client = new Client({ server: '127.0.0.1', secret: Buffer.from('x'), dict });",
+      'client.close();',
+      '',
+    ].join('\n'));
+    const tsc = path.join(projectDir, 'node_modules', '.bin',
+      process.platform === 'win32' ? 'tsc.cmd' : 'tsc');
+    execFileSync(tsc, [
+      '--noEmit', '--strict', '--target', 'ES2022',
+      '--module', 'Node16', '--moduleResolution', 'Node16', 'smoke.ts',
+    ], { cwd: consumerDir, stdio: 'inherit' });
+
+    // ESM consumers should receive Node's named exports from the CJS package.
+    execFileSync(process.execPath, [
+      '--input-type=module', '--eval',
+      "import { Dictionary } from 'tsrad'; if (!Dictionary) process.exit(1);",
+    ], { cwd: consumerDir, stdio: 'ignore' });
+
+    const consumerRequire = createRequire(path.join(consumerDir, 'consumer.cjs'));
+    const tsrad = consumerRequire('tsrad');
+    assert.equal(typeof consumerRequire('tsrad/db').createSchema, 'function');
+    assert.equal(consumerRequire('tsrad/package.json').name, 'tsrad');
     const {
       Server, Client, RemoteHost, Dictionary,
       AccessAccept, AccountingResponse, CoAACK,

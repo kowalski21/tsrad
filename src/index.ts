@@ -139,16 +139,3 @@ export {
   RadSecClient, RadSecServer,
   type RadSecClientOptions, type RadSecServerOptions,
 } from './radsec.js';
-
-// Database (rlm_sql compatible)
-export {
-  createSchema, dropSchema,
-  seedUser,
-  findUser, findUserReply, findUserGroups, findGroupCheck, findGroupReply,
-  evaluateOp,
-  createDbAuth, createDbAcct,
-  DatabaseServer,
-  type DbAuthOptions, type DbAcctOptions, type DatabaseServerOptions,
-  type CheckRow, type ReplyRow, type UserGroupRow,
-  type GroupCheckRow, type GroupReplyRow, type AcctRow, type NasRow,
-} from './db.js';

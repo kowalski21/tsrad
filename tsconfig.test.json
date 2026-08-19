@@ -4,7 +4,8 @@
     "outDir": ".test-dist",
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "inlineSources": false
   },
   "exclude": ["node_modules", "dist", ".test-dist"]
 }

@@ -179,6 +179,16 @@ const dict = new Dictionary(path.join(dataDir, 'realistic'));
 
 ---
 
+## Installation
+
+```bash
+npm install tsrad
+```
+
+The core client, server, proxy, and RadSec APIs have no runtime dependencies.
+For database-backed authentication and accounting, install Knex and a database
+driver, then import database APIs from `tsrad/db`.
+
 ## Usage
 
 For local development or small services, a dictionary can be embedded directly:
@@ -1163,7 +1173,7 @@ npm install knex better-sqlite3
 
 ```ts
 import knex from 'knex';
-import { createSchema, dropSchema } from 'tsrad';
+import { createSchema, dropSchema } from 'tsrad/db';
 
 const db = knex({
   client: 'pg',
@@ -1194,7 +1204,7 @@ await createSchema(db);
 For application setup, `seedUser()` provides a typed convenience wrapper:
 
 ```ts
-import { seedUser } from 'tsrad';
+import { seedUser } from 'tsrad/db';
 
 await seedUser(db, 'alice@isp.net', 'secret123', {
   checks: { 'NAS-Port': 1 },
@@ -1257,7 +1267,8 @@ The simplest way to run a database-backed RADIUS server:
 
 ```ts
 import knex from 'knex';
-import { DatabaseServer, RemoteHost, Dictionary, createSchema } from 'tsrad';
+import { RemoteHost, Dictionary } from 'tsrad';
+import { DatabaseServer, createSchema } from 'tsrad/db';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const db = knex({
@@ -1296,7 +1307,8 @@ This gives you:
 If you need more control, use the handler factories directly. They return functions compatible with the Server handler signature:
 
 ```ts
-import { Server, RemoteHost, Dictionary, createDbAuth, createDbAcct } from 'tsrad';
+import { Server, RemoteHost, Dictionary } from 'tsrad';
+import { createDbAuth, createDbAcct } from 'tsrad/db';
 import type { RadiusPacket } from 'tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
@@ -1351,7 +1363,7 @@ import {
   findUser, findUserReply, findUserGroups,
   findGroupCheck, findGroupReply,
   evaluateOp,
-} from 'tsrad';
+} from 'tsrad/db';
 
 // In a custom handler
 async function myAuthHandler(this: Server, pkt: RadiusPacket) {
@@ -1427,7 +1439,8 @@ SQLite is ideal for local development and testing:
 
 ```ts
 import knex from 'knex';
-import { DatabaseServer, RemoteHost, Dictionary, createSchema } from 'tsrad';
+import { RemoteHost, Dictionary } from 'tsrad';
+import { DatabaseServer, createSchema } from 'tsrad/db';
 
 const db = knex({
   client: 'better-sqlite3',

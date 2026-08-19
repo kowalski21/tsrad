@@ -18,6 +18,9 @@ import {
 } from './index.js';
 
 const dataDir = path.resolve(__dirname, '..', 'tests', 'data');
+// Keep integration tests away from the well-known RADIUS ports and reduce
+// collisions between concurrent local/CI test processes.
+const testPortBase = 40000 + (process.pid % 10000);
 
 // Use realistic dict — has User-Name, NAS-IP-Address, etc.
 function loadDict(): Dictionary {
@@ -40,8 +43,8 @@ describe('Async Handlers', () => {
 
     const server = new AsyncServer({
       addresses: ['127.0.0.1'],
-      authport: 18120,
-      acctport: 18130,
+      authport: testPortBase,
+      acctport: testPortBase + 10,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('testing123'), 'test')],
@@ -49,11 +52,11 @@ describe('Async Handlers', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18120,
+      authport: testPortBase,
       secret: Buffer.from('testing123'),
       dict,
       timeout: 2,
@@ -84,8 +87,8 @@ describe('Async Handlers', () => {
 
     const server = new SyncServer({
       addresses: ['127.0.0.1'],
-      authport: 18121,
-      acctport: 18131,
+      authport: testPortBase + 1,
+      acctport: testPortBase + 11,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('s123'), 'test')],
@@ -93,11 +96,11 @@ describe('Async Handlers', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18121,
+      authport: testPortBase + 1,
       secret: Buffer.from('s123'),
       dict,
       timeout: 2,
@@ -131,8 +134,8 @@ describe('Middleware Pipeline', () => {
 
     const server = new MwServer({
       addresses: ['127.0.0.1'],
-      authport: 18122,
-      acctport: 18132,
+      authport: testPortBase + 2,
+      acctport: testPortBase + 12,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('mw'), 'test')],
@@ -152,11 +155,11 @@ describe('Middleware Pipeline', () => {
       await next();
     });
 
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18122,
+      authport: testPortBase + 2,
       secret: Buffer.from('mw'),
       dict,
       timeout: 2,
@@ -194,8 +197,8 @@ describe('Graceful Shutdown', () => {
 
     const server = new SlowServer({
       addresses: ['127.0.0.1'],
-      authport: 18123,
-      acctport: 18133,
+      authport: testPortBase + 3,
+      acctport: testPortBase + 13,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('gs'), 'test')],
@@ -203,14 +206,14 @@ describe('Graceful Shutdown', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     // Send a request via raw UDP to trigger the handler, then test shutdown
     const sock = dgram.createSocket('udp4');
     const req = new AuthPacket({ secret: Buffer.from('gs'), dict });
     req.addAttribute('User-Name', 'test');
     const raw = req.requestPacket();
-    sock.send(raw, 18123, '127.0.0.1');
+    sock.send(raw, testPortBase + 3, '127.0.0.1');
 
     await new Promise(r => setTimeout(r, 10));
 
@@ -235,8 +238,8 @@ describe('Metrics Integration', () => {
 
     const server = new MetricsServer({
       addresses: ['127.0.0.1'],
-      authport: 18125,
-      acctport: 18135,
+      authport: testPortBase + 5,
+      acctport: testPortBase + 15,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('met'), 'test')],
@@ -245,11 +248,11 @@ describe('Metrics Integration', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18125,
+      authport: testPortBase + 5,
       secret: Buffer.from('met'),
       dict,
       timeout: 2,
@@ -283,8 +286,8 @@ describe('Client Connection Pooling', () => {
 
     const server = new PoolServer({
       addresses: ['127.0.0.1'],
-      authport: 18126,
-      acctport: 18136,
+      authport: testPortBase + 6,
+      acctport: testPortBase + 16,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('pool'), 'test')],
@@ -292,11 +295,11 @@ describe('Client Connection Pooling', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18126,
+      authport: testPortBase + 6,
       secret: Buffer.from('pool'),
       dict,
       timeout: 3,
@@ -348,8 +351,8 @@ describe('FailoverClient', () => {
 
     const server2 = new FoServer({
       addresses: ['127.0.0.1'],
-      authport: 18128,
-      acctport: 18138,
+      authport: testPortBase + 8,
+      acctport: testPortBase + 18,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('fo2'), 'test')],
@@ -357,12 +360,12 @@ describe('FailoverClient', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server2.run();
+    await server2.listen();
 
     const client = new FailoverClient({
       servers: [
-        { server: '127.0.0.1', authport: 18127, secret: Buffer.from('fo1') },
-        { server: '127.0.0.1', authport: 18128, secret: Buffer.from('fo2') },
+        { server: '127.0.0.1', authport: testPortBase + 7, secret: Buffer.from('fo1') },
+        { server: '127.0.0.1', authport: testPortBase + 8, secret: Buffer.from('fo2') },
       ],
       strategy: 'failover',
       dict,
@@ -399,8 +402,8 @@ describe('Status-Server', () => {
 
     const server = new Server({
       addresses: ['127.0.0.1'],
-      authport: 18129,
-      acctport: 18139,
+      authport: testPortBase + 9,
+      acctport: testPortBase + 19,
       dict,
       hosts: new Map([
         ['127.0.0.1', new RemoteHost('127.0.0.1', Buffer.from('status'), 'test')],
@@ -408,11 +411,11 @@ describe('Status-Server', () => {
       dedupTtl: false,
       rateLimit: false,
     });
-    server.run();
+    await server.listen();
 
     const client = new Client({
       server: '127.0.0.1',
-      authport: 18129,
+      authport: testPortBase + 9,
       secret: Buffer.from('status'),
       dict,
       timeout: 2,

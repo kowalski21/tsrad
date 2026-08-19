@@ -2,15 +2,26 @@
   "name": "tsrad",
   "version": "1.0.0",
   "description": "TypeScript RADIUS client/server library — port of pyrad",
+  "author": "Douglas Amoo-Sargon",
+  "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./db": {
+      "types": "./dist/db.d.ts",
+      "require": "./dist/db.js",
+      "default": "./dist/db.js"
+    },
+    "./package.json": "./package.json"
   },
+  "sideEffects": false,
   "files": [
+    "CHANGELOG.md",
     "dist/**/*.js",
     "dist/**/*.d.ts",
     "dist/**/*.js.map",
@@ -32,7 +43,9 @@
     "test:e2e:transport": "npm run test:compile && node --test .test-dist/e2e.test.js",
     "test:package": "npm run build && node scripts/package-e2e.cjs",
     "test:e2e": "npm run test:e2e:transport && npm run test:package",
-    "prepublishOnly": "npm run build"
+    "verify:publish": "npm run typecheck && npm test && npm run test:package",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run verify:publish"
   },
   "keywords": [
     "radius",
@@ -47,8 +60,22 @@
     "freeradius"
   ],
   "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kowalski21/tsrad.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kowalski21/tsrad/issues"
+  },
+  "homepage": "https://github.com/kowalski21/tsrad#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@types/node": "^22.0.0"
   },
   "peerDependencies": {
     "knex": ">=2.0.0"
@@ -60,7 +87,6 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.0.0",
     "better-sqlite3": "^12.6.2",
     "knex": "^3.3.0",
     "typescript": "^5.7.0"
