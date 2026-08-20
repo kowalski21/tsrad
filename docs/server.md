@@ -84,6 +84,8 @@ const server = new MyServer({
 | `acctEnabled` | `boolean` | `true` | Enable accounting listener |
 | `coaEnabled` | `boolean` | `false` | Enable CoA/Disconnect listener |
 | `hosts` | `Map<string, RemoteHost>` | empty map | Allowed NAS clients |
+| `family` | `'udp4' \| 'udp6'` | inferred | UDP socket family; normally inferred from each address |
+| `verifyPackets` | `boolean` | `true` | Verify accounting/CoA authenticators and Message-Authenticators |
 
 ## RemoteHost
 
@@ -178,8 +180,8 @@ server.on('error', (err) => {
 ## Starting and Stopping
 
 ```ts
-// Start: sockets are already bound after construction,
-// run() marks the server as active and emits 'ready'
+// run() binds default 0.0.0.0 when no addresses were supplied,
+// marks the server as active, and emits 'ready'
 server.run();
 
 // Stop: closes all sockets
@@ -199,6 +201,19 @@ server.bindToAddress('10.0.0.1');
 server.bindToAddress('192.168.1.1');
 
 server.run();
+```
+
+## Async server API
+
+`Server` already supports Promise-returning handlers. `ServerAsync` provides
+explicit async transport lifecycle methods:
+
+```ts
+import { ServerAsync } from 'tsrad';
+
+const server = new ServerAsync({ dict, hosts });
+await server.initializeTransports(['127.0.0.1']);
+await server.deinitializeTransports();
 ```
 
 Or pass addresses in the constructor:

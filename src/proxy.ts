@@ -25,7 +25,7 @@ export interface RealmRoute {
 
 export interface ProxyOptions extends ServerOptions {
   /** Map of realm → routing config */
-  routes: Map<string, RealmRoute>;
+  routes: Map<string, RealmRoute> | Record<string, RealmRoute>;
   /** Default route for unknown realms (optional) */
   defaultRoute?: RealmRoute;
   /** Realm separator character (default '@') */
@@ -45,7 +45,9 @@ export class ProxyServer extends Server {
 
   constructor(opts: ProxyOptions) {
     super(opts);
-    this.routes = opts.routes;
+    this.routes = opts.routes instanceof Map
+      ? opts.routes
+      : new Map(Object.entries(opts.routes));
     this.defaultRoute = opts.defaultRoute;
     this.realmSeparator = opts.realmSeparator ?? '@';
     this.proxyLogger = opts.logger ?? new NullLogger();
@@ -110,20 +112,22 @@ export class ProxyServer extends Server {
         continue;
       }
       try {
-        const vals = pkt.get(key);
-        if (vals) fwdPkt.set(key, vals);
+        this.copyAttribute(pkt, fwdPkt, key);
       } catch { /* skip unknown */ }
     }
 
-    // Add Proxy-State for tracking
-    try {
-      const proxyState = Buffer.from(JSON.stringify({
-        src: pkt.source.address,
-        port: pkt.source.port,
-        id: pkt.id,
-      }));
-      fwdPkt.addAttribute('Proxy-State', proxyState);
-    } catch { /* Proxy-State may not be in dict */ }
+    // Preserve an existing Proxy-State. If none exists, add an opaque state
+    // value so the upstream can return it according to RFC 2865.
+    if (!pkt.has('Proxy-State')) {
+      try {
+        const proxyState = Buffer.from(JSON.stringify({
+          src: pkt.source.address,
+          port: pkt.source.port,
+          id: pkt.id,
+        }));
+        fwdPkt.addAttribute('Proxy-State', proxyState);
+      } catch { /* Proxy-State may not be in dict */ }
+    }
 
     try {
       const reply = await client.sendPacket(fwdPkt);
@@ -135,10 +139,8 @@ export class ProxyServer extends Server {
       // Copy reply attributes
       for (const key of reply.keys()) {
         if (typeof key !== 'string') continue;
-        if (key === 'Proxy-State') continue; // don't relay our proxy state
         try {
-          const vals = reply.get(key);
-          if (vals) relayReply.set(key, vals);
+          this.copyAttribute(reply, relayReply, key);
         } catch { /* skip */ }
       }
 
@@ -168,11 +170,42 @@ export class ProxyServer extends Server {
     return client;
   }
 
-  stop(): void {
-    for (const client of this.realmClients.values()) {
-      client.close();
+  /** Copy an attribute across a shared-secret boundary. */
+  private copyAttribute(source: Packet, target: Packet, key: string): void {
+    if (key === 'User-Password') {
+      const encrypted = source.get(key);
+      if (Array.isArray(encrypted) && Buffer.isBuffer(encrypted[0])) {
+        target.setPassword(source.pwDecrypt(encrypted[0]));
+      }
+      return;
     }
+
+    if (key === 'Message-Authenticator') {
+      target.addMessageAuthenticator();
+      return;
+    }
+
+    if (source.dict.get(key)?.encrypt === 2) {
+      target.set(key, source.getAttribute(key));
+      return;
+    }
+
+    const values = source.get(key);
+    if (values) target.set(key, values);
+  }
+
+  private closeRealmClients(): void {
+    for (const client of this.realmClients.values()) client.close();
     this.realmClients.clear();
+  }
+
+  stop(): void {
+    this.closeRealmClients();
     super.stop();
+  }
+
+  async gracefulStop(timeoutMs = 5000): Promise<void> {
+    await super.gracefulStop(timeoutMs);
+    this.closeRealmClients();
   }
 }

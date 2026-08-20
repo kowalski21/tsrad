@@ -137,6 +137,12 @@ new Packet({ dict, User_Name: 'alice' })
 | `getAttribute(key: string)` | `any[]` | Get decoded attribute values |
 | `get(key: string \| number \| AttrKey)` | `AttrMapValue \| undefined` | Get raw attribute values |
 | `set(key: string \| number \| AttrKey, value: AttrMapValue)` | `void` | Set/replace attribute values |
+| `getStringAttribute(key, defaultValue?)` | `string \| undefined` | Read the first decoded string value |
+| `getNumberAttribute(key, defaultValue?)` | `number \| undefined` | Read the first decoded numeric value |
+| `getBufferAttribute(key, defaultValue?)` | `Buffer \| undefined` | Read the first decoded octet value |
+| `setUserName(username)` | `void` | Convenience setter for `User-Name` |
+| `setPassword(password)` | `void` | PAP-encrypt and set `User-Password` |
+| `setNasIpAddress(address)` | `void` | Convenience setter for `NAS-IP-Address` |
 | `has(key: string \| number)` | `boolean` | Check if attribute exists |
 | `delete(key: string \| number)` | `void` | Remove attribute |
 | `keys()` | `(string \| number)[]` | List all attribute names |
@@ -297,9 +303,12 @@ See [Client Guide](./client.md) for `ClientOptions`.
 |----------|------|-------------|
 | `server` | `string` | RADIUS server address |
 | `secret` | `Buffer` | Shared secret |
-| `retries` | `number` | Retry count |
+| `retries` | `number` | Total send attempts, including the initial attempt |
 | `timeout` | `number` | Timeout in seconds |
 | `enforceMA` | `boolean` | Auto Message-Authenticator |
+| `family` | `'udp4' \| 'udp6'` | UDP socket family |
+| `localAddress` | `string` | Optional local bind address |
+| `localPort` | `number` | Optional local bind port |
 
 ### Methods
 
@@ -309,6 +318,7 @@ See [Client Guide](./client.md) for `ClientOptions`.
 | `createAcctPacket(opts?)` | `AcctPacket` | Create acct packet (with client secret) |
 | `createCoAPacket(opts?)` | `CoAPacket` | Create CoA packet (with client secret) |
 | `sendPacket(pkt: Packet)` | `Promise<Packet>` | Send and wait for reply |
+| `bind(address?)` | `void` | Bind the client socket to a local address/port |
 | `close()` | `void` | Close UDP socket |
 
 ---
@@ -343,7 +353,10 @@ See [Server Guide](./server.md) for `ServerOptions`.
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `bindToAddress(addr: string)` | `void` | Bind to an IP address |
+| `BindToAddress(addr: string)` | `void` | pyrad-compatible alias |
+| `Run()` | `void` | pyrad-compatible alias for `run()` |
 | `run()` | `void` | Start the server |
+| `listen()` | `Promise<void>` | Start the server and yield after transport startup |
 | `stop()` | `void` | Stop and close all sockets |
 | `on(event, listener)` | `this` | Listen for events (`'ready'`, `'error'`) |
 

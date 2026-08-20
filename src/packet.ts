@@ -88,6 +88,17 @@ export class Packet {
   dict!: Dictionary;
 
   protected data = new Map<number | string, AttrMapValue>();
+  /** Attribute keys in wire order; data remains a grouped lookup view. */
+  private attributeOrder: string[] = [];
+
+  private storeKey(key: number | AttrKey): string {
+    return typeof key === 'number' ? String(key) : JSON.stringify(key);
+  }
+
+  private rememberKey(key: number | AttrKey): void {
+    const stored = this.storeKey(key);
+    if (!this.attributeOrder.includes(stored)) this.attributeOrder.push(stored);
+  }
 
   constructor(opts: PacketOptions = {}) {
     this.code = opts.code ?? 0;
@@ -138,8 +149,10 @@ export class Packet {
         typeof encKey === 'number' ? encKey : JSON.stringify(encKey),
         encVal,
       );
+      this.rememberKey(encKey);
     } else {
       this.data.set(typeof key === 'number' ? key : JSON.stringify(key), value);
+      this.rememberKey(key);
     }
   }
 
@@ -159,8 +172,10 @@ export class Packet {
     if (typeof key === 'string') {
       const encKey = this.encodeKey(key);
       this.data.delete(typeof encKey === 'number' ? encKey : JSON.stringify(encKey));
+      this.attributeOrder = this.attributeOrder.filter(k => k !== this.storeKey(encKey));
     } else {
       this.data.delete(key);
+      this.attributeOrder = this.attributeOrder.filter(k => k !== this.storeKey(key));
     }
   }
 
@@ -188,6 +203,40 @@ export class Packet {
     const vals = values as AttrValue;
     return vals.map(v => this.decodeValue(attr, v));
   }
+
+  /** Read one decoded string attribute with a useful missing-value error. */
+  getStringAttribute(key: string, defaultValue?: string): string | undefined {
+    try {
+      const value = this.getAttribute(key)[0];
+      return value === undefined ? defaultValue : String(value);
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  /** Read one decoded numeric attribute. */
+  getNumberAttribute(key: string, defaultValue?: number): number | undefined {
+    try {
+      const value = Number(this.getAttribute(key)[0]);
+      return Number.isFinite(value) ? value : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  /** Read one raw attribute value. */
+  getBufferAttribute(key: string, defaultValue?: Buffer): Buffer | undefined {
+    try {
+      const value = this.get(key);
+      return Array.isArray(value) && Buffer.isBuffer(value[0]) ? value[0] : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  setUserName(username: string): void { this.addAttribute('User-Name', username); }
+  setPassword(password: string): void { this.set('User-Password', [this.pwCrypt(password)]); }
+  setNasIpAddress(address: string): void { this.addAttribute('NAS-IP-Address', address); }
 
   /** Get all attribute names present in the packet */
   keys(): (string | number)[] {
@@ -236,6 +285,7 @@ export class Packet {
       if (!tlv) {
         tlv = new Map();
         this.data.set(parentStoreKey, tlv);
+        this.rememberKey(parentKey);
       }
       const existing = tlv.get(encKey as number) ?? [];
       existing.push(...(encValues as Buffer[]));
@@ -244,6 +294,7 @@ export class Packet {
       const existing = (this.data.get(storeKey) as AttrValue) ?? [];
       existing.push(...(encValues as Buffer[]));
       this.data.set(storeKey, existing);
+      this.rememberKey(encKey);
     }
   }
 
@@ -480,6 +531,7 @@ export class Packet {
       const existing = (this.data.get(storeKey) as AttrValue) ?? [];
       existing.push(value);
       this.data.set(storeKey, existing);
+      this.rememberKey(key);
     } else {
       // Long extended: extCode + flags + value
       if (data.length < 2) return;
@@ -501,6 +553,7 @@ export class Packet {
         const existing = (this.data.get(storeKey) as AttrValue) ?? [];
         existing.push(pending);
         this.data.set(storeKey, existing);
+        this.rememberKey(key);
         delete (this as any)[pendingKey];
       } else {
         // More fragments coming
@@ -573,7 +626,15 @@ export class Packet {
 
   protected pktEncodeAttributes(): Buffer {
     let result = Buffer.alloc(0);
-    for (const [codeKey, datalst] of this.data) {
+    const orderedKeys = this.attributeOrder.length > 0
+      ? this.attributeOrder
+      : [...this.data.keys()].map(k => typeof k === 'number' ? String(k) : k);
+    for (const storedKey of orderedKeys) {
+      const codeKey: number | string = /^\d+$/.test(storedKey)
+        ? Number(storedKey)
+        : storedKey;
+      const datalst = this.data.get(codeKey);
+      if (!datalst) continue;
       const numKey = typeof codeKey === 'number' ? codeKey : undefined;
       if (numKey !== undefined && this.pktIsTlvAttribute(numKey)) {
         result = Buffer.concat([result, this.pktEncodeTlv(numKey, datalst as TlvValue)]);
@@ -623,6 +684,7 @@ export class Packet {
     if (length > 8192) throw new PacketError(`Packet length is too long (${length})`);
 
     this.data.clear();
+    this.attributeOrder = [];
 
     let rest = packet.subarray(20);
     while (rest.length > 0) {
@@ -640,6 +702,7 @@ export class Packet {
           const existing = (this.data.get(sk) as AttrValue) ?? [];
           existing.push(vv);
           this.data.set(sk, existing);
+          this.rememberKey(vk);
         }
       } else if (key === 80) {
         // Message-Authenticator
@@ -647,6 +710,7 @@ export class Packet {
         const existing = (this.data.get(key) as AttrValue) ?? [];
         existing.push(value);
         this.data.set(key, existing);
+        this.rememberKey(key);
       } else if (this.isExtendedAttrCode(key)) {
         // RFC 6929 extended attributes
         this.pktDecodeExtendedAttribute(key, value);
@@ -656,6 +720,7 @@ export class Packet {
         const existing = (this.data.get(key) as AttrValue) ?? [];
         existing.push(value);
         this.data.set(key, existing);
+        this.rememberKey(key);
       }
 
       rest = rest.subarray(attrlen);
@@ -739,6 +804,7 @@ export class Packet {
     if (!subAttrs) {
       subAttrs = new Map();
       this.data.set(storeKey, subAttrs);
+      this.rememberKey(code as any);
     }
 
     let loc = 0;
@@ -790,7 +856,7 @@ export class Packet {
 
   // ---- Verify ----
 
-  verifyReply(reply: Packet, rawReply?: Buffer): boolean {
+  verifyReply(reply: Packet, rawReply?: Buffer, enforceMA = false): boolean {
     if (reply.id !== this.id) return false;
 
     if (!rawReply) rawReply = reply.replyPacket();
@@ -802,7 +868,20 @@ export class Packet {
     hash.update(this.secret);
     const expected = hash.digest();
 
-    return expected.equals(rawReply.subarray(4, 20));
+    if (!expected.equals(rawReply.subarray(4, 20))) return false;
+    if (enforceMA && !reply.messageAuthenticator) return false;
+    if (reply.messageAuthenticator && !reply.verifyMessageAuthenticator(
+      this.secret,
+      this.authenticator ?? undefined,
+    )) return false;
+    return true;
+  }
+
+  /** Recalculate and return the Message-Authenticator value. */
+  getMessageAuthenticator(): Buffer | undefined {
+    if (!this.messageAuthenticator) return undefined;
+    this.refreshMessageAuthenticator();
+    return (this.data.get(80) as AttrValue | undefined)?.[0];
   }
 
   // ---- Message Authenticator ----

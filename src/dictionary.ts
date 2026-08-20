@@ -123,6 +123,13 @@ export class Dictionary {
     }
   }
 
+  /** Build a dictionary from inline definitions. */
+  static fromText(text: string, name = '<inline>'): Dictionary {
+    const dictionary = new Dictionary();
+    dictionary.readDictionaryText(text, name);
+    return dictionary;
+  }
+
   get(key: string): Attribute | undefined {
     return this.attributes.get(key);
   }
@@ -137,7 +144,15 @@ export class Dictionary {
   }
 
   readDictionary(file: string): void {
-    const fil = new DictFile(file);
+    this.readDictFile(new DictFile(file));
+  }
+
+  /** Add dictionary definitions from inline text without creating a file. */
+  readDictionaryText(text: string, name = '<inline>'): void {
+    this.readDictFile(DictFile.fromText(text, name));
+  }
+
+  private readDictFile(fil: DictFile): void {
     const state: ParserState = { vendor: '', tlvs: new Map(), file: '', line: 0 };
     this.deferParse = [];
 

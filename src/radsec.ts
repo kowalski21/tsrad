@@ -79,9 +79,12 @@ export class RadSecClient {
   private timeout: number;
   private socket: tls.TLSSocket | null = null;
   private buffer: Buffer = Buffer.alloc(0);
-  private pendingResolve: ((pkt: Packet) => void) | null = null;
-  private pendingReject: ((err: Error) => void) | null = null;
-  private pendingOriginal: Packet | null = null;
+  private pending = new Map<number, {
+    resolve: (pkt: Packet) => void;
+    reject: (err: Error) => void;
+    original: Packet;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
   private logger: Logger;
 
   constructor(opts: RadSecClientOptions) {
@@ -118,21 +121,11 @@ export class RadSecClient {
       this.socket.on('data', (data: Buffer) => this.onData(data));
       this.socket.on('error', (err) => {
         clearTimeout(timer);
-        if (this.pendingReject) {
-          this.pendingReject(err);
-          this.pendingResolve = null;
-          this.pendingReject = null;
-          this.pendingOriginal = null;
-        }
+        this.rejectPending(err);
         reject(err);
       });
       this.socket.on('close', () => {
-        if (this.pendingReject) {
-          this.pendingReject(new Error('Connection closed'));
-          this.pendingResolve = null;
-          this.pendingReject = null;
-          this.pendingOriginal = null;
-        }
+        this.rejectPending(new Error('Connection closed'));
       });
     });
   }
@@ -144,30 +137,37 @@ export class RadSecClient {
     }
 
     pkt.secret = this.secret;
+    pkt.id = this.allocateId(pkt.id);
     const raw = (pkt as any).requestPacket
       ? (pkt as AuthPacket | AcctPacket | CoAPacket).requestPacket()
       : pkt.replyPacket();
 
     return new Promise<Packet>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pendingResolve = null;
-        this.pendingReject = null;
-        this.pendingOriginal = null;
+        this.pending.delete(pkt.id);
         reject(new Error('RadSec response timeout'));
       }, this.timeout);
 
-      this.pendingResolve = (reply) => {
-        clearTimeout(timer);
-        resolve(reply);
-      };
-      this.pendingReject = (err) => {
-        clearTimeout(timer);
-        reject(err);
-      };
-      this.pendingOriginal = pkt;
+      this.pending.set(pkt.id, { resolve, reject, original: pkt, timer });
 
       this.socket!.write(raw);
     });
+  }
+
+  private allocateId(preferred: number): number {
+    if (!this.pending.has(preferred)) return preferred;
+    for (let id = 0; id < 256; id++) {
+      if (!this.pending.has(id)) return id;
+    }
+    throw new Error('All 256 RADIUS packet IDs are in use');
+  }
+
+  private rejectPending(err: Error): void {
+    for (const [id, request] of this.pending) {
+      clearTimeout(request.timer);
+      this.pending.delete(id);
+      request.reject(err);
+    }
   }
 
   private onData(data: Buffer): void {
@@ -176,27 +176,42 @@ export class RadSecClient {
     // Try to parse complete RADIUS packets from the buffer
     while (this.buffer.length >= 4) {
       const length = this.buffer.readUInt16BE(2);
+      if (length < 20 || length > 8192) {
+        this.logger.error('Invalid RadSec packet length');
+        this.buffer = Buffer.alloc(0);
+        return;
+      }
       if (this.buffer.length < length) break; // need more data
 
       const pktBuf = this.buffer.subarray(0, length);
       this.buffer = Buffer.from(this.buffer.subarray(length));
 
-      if (this.pendingResolve && this.pendingOriginal) {
+      const id = pktBuf[1];
+      const request = this.pending.get(id);
+      if (request) {
         try {
-          const reply = this.pendingOriginal.createReply({
+          const reply = request.original.createReply({
             packet: Buffer.from(pktBuf),
           });
-          if (this.pendingOriginal.authenticator) {
-            reply.requestAuthenticator = this.pendingOriginal.authenticator;
+          if (request.original.authenticator) {
+            reply.requestAuthenticator = request.original.authenticator;
           }
-          const cb = this.pendingResolve;
-          this.pendingResolve = null;
-          this.pendingReject = null;
-          this.pendingOriginal = null;
-          cb(reply);
+          if (!request.original.verifyReply(reply, pktBuf)) {
+            throw new PacketError('Invalid RadSec reply authenticator');
+          }
+          if (reply.messageAuthenticator && !reply.verifyMessageAuthenticator(
+            this.secret,
+            request.original.authenticator ?? undefined,
+          )) {
+            throw new PacketError('Invalid RadSec Message-Authenticator');
+          }
+          clearTimeout(request.timer);
+          this.pending.delete(id);
+          request.resolve(reply);
         } catch (err) {
-          // Bad packet
-          this.logger.error('Failed to decode RadSec reply');
+          clearTimeout(request.timer);
+          this.pending.delete(id);
+          request.reject(err instanceof Error ? err : new Error(String(err)));
         }
       }
     }
@@ -204,6 +219,7 @@ export class RadSecClient {
 
   /** Close the TLS connection. */
   close(): void {
+    this.rejectPending(new Error('Connection closed'));
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -288,6 +304,11 @@ export class RadSecServer {
 
       while (buffer.length >= 4) {
         const length = buffer.readUInt16BE(2);
+        if (length < 20 || length > 8192) {
+          this.logger.error('Invalid RadSec packet length');
+          socket.destroy();
+          return;
+        }
         if (buffer.length < length) break;
 
         const pktBuf = Buffer.from(buffer.subarray(0, length));

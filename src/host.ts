@@ -46,6 +46,12 @@ export class Host {
     return new CoAPacket({ dict: this.dict, ...opts });
   }
 
+  // Compatibility aliases for pyrad's Host API.
+  CreatePacket(opts?: PacketOptions): Packet { return this.createPacket(opts); }
+  CreateAuthPacket(opts?: PacketOptions): AuthPacket { return this.createAuthPacket(opts); }
+  CreateAcctPacket(opts?: PacketOptions): AcctPacket { return this.createAcctPacket(opts); }
+  CreateCoAPacket(opts?: PacketOptions): CoAPacket { return this.createCoAPacket(opts); }
+
   sendPacketVia(socket: dgram.Socket, pkt: Packet, address: string, port: number): void {
     const data = pkt.replyPacket();
     socket.send(data, port, address);
@@ -54,5 +60,14 @@ export class Host {
   sendReplyVia(socket: dgram.Socket, pkt: Packet, address: string, port: number): void {
     const data = pkt.replyPacket();
     socket.send(data, port, address);
+  }
+
+  SendPacket(...args: any[]): any {
+    if (args.length === 1) throw new Error('Host.SendPacket requires socket, packet, address, and port');
+    this.sendPacketVia(args[0], args[1], args[2], args[3]);
+  }
+
+  SendReplyPacket(...args: any[]): any {
+    this.sendReplyVia(args[0], args[1], args[2], args[3]);
   }
 }

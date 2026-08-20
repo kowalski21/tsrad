@@ -222,6 +222,30 @@ export async function findGroupReply(db: Knex, groupname: string): Promise<Group
   return db('radgroupreply').where({ groupname }).select('*');
 }
 
+/** Seed a user using the standard rlm_sql tables. Useful for local setup/tests. */
+export async function seedUser(
+  db: Knex,
+  username: string,
+  password: string,
+  options?: {
+    checks?: Record<string, string | number>;
+    replies?: Record<string, string | number>;
+  },
+): Promise<void> {
+  await db('radcheck').insert({
+    username,
+    attribute: 'Cleartext-Password',
+    op: ':=',
+    value: password,
+  });
+  for (const [attribute, value] of Object.entries(options?.checks ?? {})) {
+    await db('radcheck').insert({ username, attribute, op: ':=', value: String(value) });
+  }
+  for (const [attribute, value] of Object.entries(options?.replies ?? {})) {
+    await db('radreply').insert({ username, attribute, op: ':=', value: String(value) });
+  }
+}
+
 // ---- Operator evaluation ----
 
 export function evaluateOp(op: string, requestValue: string, checkValue: string): boolean {

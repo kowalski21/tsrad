@@ -93,12 +93,19 @@ export {
   Client, Timeout, FailoverClient,
   type ClientOptions, type ServerEndpoint, type FailoverStrategy, type FailoverClientOptions,
 } from './client.js';
+export { ClientAsync } from './client_async.js';
 
 // Server
 export {
   Server, RemoteHost, ServerPacketError,
   type ServerOptions, type RadiusPacket,
 } from './server.js';
+export { ServerAsync } from './server_async.js';
+export {
+  secretFromEnv, clientOptionsFromEnv, serverOptionsFromEnv,
+  createClientFromEnv, createServerFromEnv,
+  type RadiusEnv,
+} from './config.js';
 
 // Logger
 export {
@@ -132,15 +139,3 @@ export {
   RadSecClient, RadSecServer,
   type RadSecClientOptions, type RadSecServerOptions,
 } from './radsec.js';
-
-// Database (rlm_sql compatible)
-export {
-  createSchema, dropSchema,
-  findUser, findUserReply, findUserGroups, findGroupCheck, findGroupReply,
-  evaluateOp,
-  createDbAuth, createDbAcct,
-  DatabaseServer,
-  type DbAuthOptions, type DbAcctOptions, type DatabaseServerOptions,
-  type CheckRow, type ReplyRow, type UserGroupRow,
-  type GroupCheckRow, type GroupReplyRow, type AcctRow, type NasRow,
-} from './db.js';

@@ -42,6 +42,11 @@ describe('Dictionary - interface', () => {
     assert.equal(dict.has('test'), false);
     assert.equal(dict.get('test'), undefined);
   });
+
+  it('builds from inline text', () => {
+    const dict = Dictionary.fromText('ATTRIBUTE User-Name 1 string\n');
+    assert.equal(dict.get('User-Name')?.code, 1);
+  });
 });
 
 describe('Dictionary - parsing simple', () => {
