@@ -9,7 +9,7 @@ Complete API surface for tsrad.
 Bidirectional map with forward and backward lookups.
 
 ```ts
-import { BiDict } from 'tsrad';
+import { BiDict } from '@kowalski21/tsrad';
 ```
 
 | Method | Returns | Description |
@@ -30,7 +30,7 @@ import { BiDict } from 'tsrad';
 Parses and stores FreeRADIUS dictionary files.
 
 ```ts
-import { Dictionary } from 'tsrad';
+import { Dictionary } from '@kowalski21/tsrad';
 ```
 
 ### Constructor
@@ -64,7 +64,7 @@ Accepts zero or more file paths. Each file is parsed immediately.
 Represents a single RADIUS attribute definition.
 
 ```ts
-import { Attribute } from 'tsrad';
+import { Attribute } from '@kowalski21/tsrad';
 ```
 
 ### Properties
@@ -89,7 +89,7 @@ import { Attribute } from 'tsrad';
 Base RADIUS packet class.
 
 ```ts
-import { Packet } from 'tsrad';
+import { Packet } from '@kowalski21/tsrad';
 ```
 
 ### Constructor
@@ -191,7 +191,7 @@ new Packet({ dict, User_Name: 'alice' })
 Extends `Packet`. Default code: `AccessRequest` (1).
 
 ```ts
-import { AuthPacket } from 'tsrad';
+import { AuthPacket } from '@kowalski21/tsrad';
 ```
 
 ### Additional Properties
@@ -215,7 +215,7 @@ import { AuthPacket } from 'tsrad';
 Extends `Packet`. Default code: `AccountingRequest` (4).
 
 ```ts
-import { AcctPacket } from 'tsrad';
+import { AcctPacket } from '@kowalski21/tsrad';
 ```
 
 ### Methods
@@ -233,7 +233,7 @@ import { AcctPacket } from 'tsrad';
 Extends `Packet`. Default code: `CoARequest` (43).
 
 ```ts
-import { CoAPacket } from 'tsrad';
+import { CoAPacket } from '@kowalski21/tsrad';
 ```
 
 ### Methods
@@ -251,7 +251,7 @@ import { CoAPacket } from 'tsrad';
 Base class for RADIUS-capable hosts (Client and Server extend this).
 
 ```ts
-import { Host } from 'tsrad';
+import { Host } from '@kowalski21/tsrad';
 ```
 
 ### Properties
@@ -286,7 +286,7 @@ import { Host } from 'tsrad';
 RADIUS client. Extends `Host`.
 
 ```ts
-import { Client } from 'tsrad';
+import { Client } from '@kowalski21/tsrad';
 ```
 
 ### Constructor
@@ -328,7 +328,7 @@ See [Client Guide](./client.md) for `ClientOptions`.
 RADIUS server. Extends `Host`.
 
 ```ts
-import { Server } from 'tsrad';
+import { Server } from '@kowalski21/tsrad';
 ```
 
 ### Constructor
@@ -383,7 +383,7 @@ See [Server Guide](./server.md) for `ServerOptions`.
 Represents a NAS client allowed to connect to the server.
 
 ```ts
-import { RemoteHost } from 'tsrad';
+import { RemoteHost } from '@kowalski21/tsrad';
 ```
 
 ### Constructor
@@ -417,7 +417,7 @@ new RemoteHost(
 Thrown when decoding a malformed packet.
 
 ```ts
-import { PacketError } from 'tsrad';
+import { PacketError } from '@kowalski21/tsrad';
 ```
 
 ### ServerPacketError
@@ -425,7 +425,7 @@ import { PacketError } from 'tsrad';
 Thrown when a server receives an unexpected packet (unknown host, wrong port, etc.).
 
 ```ts
-import { ServerPacketError } from 'tsrad';
+import { ServerPacketError } from '@kowalski21/tsrad';
 ```
 
 ### Timeout
@@ -433,7 +433,7 @@ import { ServerPacketError } from 'tsrad';
 Thrown when a client doesn't receive a reply after all retries.
 
 ```ts
-import { Timeout } from 'tsrad';
+import { Timeout } from '@kowalski21/tsrad';
 ```
 
 ### ParseError
@@ -441,7 +441,7 @@ import { Timeout } from 'tsrad';
 Thrown when a dictionary file has syntax errors.
 
 ```ts
-import { ParseError } from 'tsrad';
+import { ParseError } from '@kowalski21/tsrad';
 // err.file — file name
 // err.line — line number
 ```
@@ -464,7 +464,7 @@ import {
   encodeInteger64, decodeInteger64,
   encodeDate, decodeDate,
   encodeAttr, decodeAttr,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 ```
 
 ### Dispatch
@@ -490,7 +490,7 @@ const str = decodeAttr('string', buf);  // 'hello'
 Generate a sequential packet ID (0-255, wrapping).
 
 ```ts
-import { createID } from 'tsrad';
+import { createID } from '@kowalski21/tsrad';
 const id = createID(); // number 0-255
 ```
 

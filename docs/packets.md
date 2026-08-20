@@ -20,7 +20,7 @@ import {
   CoARequest,          // 43
   CoAACK,              // 44
   CoANAK,              // 45
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 ```
 
 ## Packet Classes
@@ -30,7 +30,7 @@ import {
 The base class for all RADIUS packets. Used directly for reply packets.
 
 ```ts
-import { Packet } from 'tsrad';
+import { Packet } from '@kowalski21/tsrad';
 
 const pkt = new Packet({
   code: AccessAccept,

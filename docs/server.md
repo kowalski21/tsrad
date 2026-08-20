@@ -10,7 +10,7 @@ import {
   AccessAccept, AccessReject,
   AccountingResponse,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/path/to/dictionary');
 
@@ -92,7 +92,7 @@ const server = new MyServer({
 Each allowed NAS client is defined as a `RemoteHost`:
 
 ```ts
-import { RemoteHost } from 'tsrad';
+import { RemoteHost } from '@kowalski21/tsrad';
 
 const nas = new RemoteHost(
   '192.168.1.100',              // IP address
@@ -209,7 +209,7 @@ server.run();
 explicit async transport lifecycle methods:
 
 ```ts
-import { ServerAsync } from 'tsrad';
+import { ServerAsync } from '@kowalski21/tsrad';
 
 const server = new ServerAsync({ dict, hosts });
 await server.initializeTransports(['127.0.0.1']);
@@ -253,7 +253,7 @@ import {
   Server, RemoteHost, Dictionary,
   AccessAccept, AccessReject, AccountingResponse,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 

@@ -6,7 +6,7 @@ import {
   Server,
   serverOptionsFromEnv,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 class ExampleServer extends Server {
   handleAuthPacket(packet: RadiusPacket): void {

@@ -9,7 +9,7 @@
  *
  * @example Client usage
  * ```ts
- * import { Client, Dictionary, AccessAccept } from 'tsrad';
+ * import { Client, Dictionary, AccessAccept } from '@kowalski21/tsrad';
  *
  * const dict = new Dictionary('/path/to/dictionary');
  * const client = new Client({
@@ -31,7 +31,7 @@
  *
  * @example Server usage
  * ```ts
- * import { Server, RemoteHost, AccessAccept, type RadiusPacket } from 'tsrad';
+ * import { Server, RemoteHost, AccessAccept, type RadiusPacket } from '@kowalski21/tsrad';
  *
  * class MyServer extends Server {
  *   handleAuthPacket(pkt: RadiusPacket) {

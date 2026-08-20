@@ -1,4 +1,4 @@
-import { AccessAccept, createClientFromEnv, Dictionary } from 'tsrad';
+import { AccessAccept, createClientFromEnv, Dictionary } from '@kowalski21/tsrad';
 
 async function main(): Promise<void> {
   const dict = new Dictionary(process.env.RADIUS_DICTIONARY ?? '/etc/freeradius/dictionary');

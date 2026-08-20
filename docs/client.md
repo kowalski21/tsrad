@@ -5,7 +5,7 @@ The `Client` class sends RADIUS requests over UDP and waits for replies with con
 ## Creating a Client
 
 ```ts
-import { Client, Dictionary } from 'tsrad';
+import { Client, Dictionary } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/path/to/dictionary');
 const client = new Client({
@@ -40,7 +40,7 @@ const client = new Client({
 ## Authentication (Access-Request)
 
 ```ts
-import { Client, AccessAccept, AccessReject, AccessChallenge } from 'tsrad';
+import { Client, AccessAccept, AccessReject, AccessChallenge } from '@kowalski21/tsrad';
 
 const req = client.createAuthPacket();
 req.addAttribute('User-Name', 'alice');
@@ -116,7 +116,7 @@ req.addMessageAuthenticator();
 ## Accounting (Accounting-Request)
 
 ```ts
-import { AccountingResponse } from 'tsrad';
+import { AccountingResponse } from '@kowalski21/tsrad';
 
 const acct = client.createAcctPacket();
 acct.addAttribute('User-Name', 'alice');
@@ -155,7 +155,7 @@ acct.addAttribute('Acct-Terminate-Cause', 'User-Request');
 ## CoA (Change of Authorization)
 
 ```ts
-import { CoAACK, CoANAK } from 'tsrad';
+import { CoAACK, CoANAK } from '@kowalski21/tsrad';
 
 const coa = client.createCoAPacket();
 coa.addAttribute('User-Name', 'alice');
@@ -174,7 +174,7 @@ if (reply.code === CoAACK) {
 ## Disconnect Request
 
 ```ts
-import { CoAPacket, DisconnectRequest, DisconnectACK, DisconnectNAK } from 'tsrad';
+import { CoAPacket, DisconnectRequest, DisconnectACK, DisconnectNAK } from '@kowalski21/tsrad';
 
 const disc = client.createCoAPacket({ code: DisconnectRequest });
 disc.addAttribute('User-Name', 'alice');
@@ -192,7 +192,7 @@ if (reply.code === DisconnectACK) {
 ## Timeout Handling
 
 ```ts
-import { Timeout } from 'tsrad';
+import { Timeout } from '@kowalski21/tsrad';
 
 try {
   const reply = await client.sendPacket(req);

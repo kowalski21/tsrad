@@ -5,7 +5,7 @@ The `Dictionary` class parses FreeRADIUS-format dictionary files that define RAD
 ## Loading a Dictionary
 
 ```ts
-import { Dictionary } from 'tsrad';
+import { Dictionary } from '@kowalski21/tsrad';
 
 // Load a single dictionary file
 const dict = new Dictionary('/usr/share/freeradius/dictionary');

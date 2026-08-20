@@ -1,6 +1,6 @@
 {
-  "name": "tsrad",
-  "version": "0.1.1",
+  "name": "@kowalski21/tsrad",
+  "version": "1.0.1",
   "description": "TypeScript RADIUS client/server library — port of pyrad",
   "author": "Douglas Amoo-Sargon",
   "type": "commonjs",

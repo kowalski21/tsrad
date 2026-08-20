@@ -17,7 +17,7 @@ This compiles the TypeScript source into `dist/` with type declarations.
 tsrad uses FreeRADIUS-format dictionary files to define attributes. You need at least one dictionary file.
 
 ```ts
-import { Dictionary } from 'tsrad';
+import { Dictionary } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/path/to/dictionary');
 ```
@@ -47,7 +47,7 @@ const dict = new Dictionary(
 ### 2. Send an Authentication Request
 
 ```ts
-import { Client, Dictionary, AccessAccept, AccessReject } from 'tsrad';
+import { Client, Dictionary, AccessAccept, AccessReject } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/path/to/dictionary');
 const client = new Client({
@@ -76,7 +76,7 @@ client.close();
 import {
   Server, RemoteHost, Dictionary,
   AccessAccept, type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/path/to/dictionary');
 
