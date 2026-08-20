@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.0.0 - 2026-08-19
+## 0.1.1 - 2026-08-20
+
+Packaging and developer-experience release.
+
+- Added npm package metadata, exports, changelog, and publish verification.
+- Split optional database integration into the `tsrad/db` subpath.
+- Improved packaged-consumer and integration test reliability.
+
+## 0.1.0 - 2026-08-19
 
 Initial npm release.
 
