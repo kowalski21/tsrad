@@ -182,12 +182,12 @@ const dict = new Dictionary(path.join(dataDir, 'realistic'));
 ## Installation
 
 ```bash
-npm install tsrad
+npm install @kowalski21/tsrad
 ```
 
 The core client, server, proxy, and RadSec APIs have no runtime dependencies.
 For database-backed authentication and accounting, install Knex and a database
-driver, then import database APIs from `tsrad/db`.
+driver, then import database APIs from `@kowalski21/tsrad/db`.
 
 ## Usage
 
@@ -220,7 +220,7 @@ to override any generated option.
 Every RADIUS interaction starts with a dictionary. The dictionary defines what attributes exist, their numeric codes, data types, and any named values.
 
 ```ts
-import { Dictionary } from 'tsrad';
+import { Dictionary } from '@kowalski21/tsrad';
 
 // Load a single file
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
@@ -314,7 +314,7 @@ The most common RADIUS operation: send an Access-Request with username and encry
 import {
   Client, Dictionary,
   AccessAccept, AccessReject, AccessChallenge,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const client = new Client({
@@ -370,7 +370,7 @@ CHAP never sends the password in cleartext — not even encrypted. Instead, the 
 
 ```ts
 import * as crypto from 'node:crypto';
-import { Client, Dictionary, AccessAccept } from 'tsrad';
+import { Client, Dictionary, AccessAccept } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const client = new Client({
@@ -485,7 +485,7 @@ handleAuthPacket(pkt: RadiusPacket) {
 Accounting packets track session lifecycle: Start, Interim-Update, Stop. The authenticator is computed (not random), so the server can verify the packet wasn't tampered with.
 
 ```ts
-import { Client, Dictionary, AccountingResponse } from 'tsrad';
+import { Client, Dictionary, AccountingResponse } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const client = new Client({
@@ -544,7 +544,7 @@ The client automatically increments `Acct-Delay-Time` on retries, so the server 
 CoA lets you push policy changes to a NAS for an active session — change bandwidth, apply filters, or update session parameters without disconnecting the user.
 
 ```ts
-import { Client, Dictionary, CoAACK, CoANAK } from 'tsrad';
+import { Client, Dictionary, CoAACK, CoANAK } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const client = new Client({
@@ -583,7 +583,7 @@ Force-disconnect a session from the NAS. Uses the same CoA port (3799) with a di
 import {
   Client, Dictionary, CoAPacket,
   DisconnectRequest, DisconnectACK, DisconnectNAK,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const client = new Client({
@@ -612,7 +612,7 @@ client.close();
 Many network equipment vendors define their own RADIUS attributes inside the Vendor-Specific (type 26) wrapper. tsrad handles them transparently once the vendor is defined in the dictionary.
 
 ```ts
-import { Client, Dictionary, AccessAccept } from 'tsrad';
+import { Client, Dictionary, AccessAccept } from '@kowalski21/tsrad';
 
 // Dictionary with Mikrotik vendor definitions
 const dict = new Dictionary('/path/to/dictionary.mikrotik');
@@ -841,7 +841,7 @@ import {
   Server, RemoteHost, Dictionary,
   AccessAccept, AccessReject,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 
@@ -882,7 +882,7 @@ import {
   Server, RemoteHost, Dictionary,
   AccessAccept, AccessReject, AccountingResponse,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary(
   '/usr/share/freeradius/dictionary.rfc2865',
@@ -1061,7 +1061,7 @@ import {
   Server, RemoteHost, Dictionary,
   CoAACK, CoANAK, DisconnectACK, DisconnectNAK,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 
@@ -1173,7 +1173,7 @@ npm install knex better-sqlite3
 
 ```ts
 import knex from 'knex';
-import { createSchema, dropSchema } from 'tsrad/db';
+import { createSchema, dropSchema } from '@kowalski21/tsrad/db';
 
 const db = knex({
   client: 'pg',
@@ -1204,7 +1204,7 @@ await createSchema(db);
 For application setup, `seedUser()` provides a typed convenience wrapper:
 
 ```ts
-import { seedUser } from 'tsrad/db';
+import { seedUser } from '@kowalski21/tsrad/db';
 
 await seedUser(db, 'alice@isp.net', 'secret123', {
   checks: { 'NAS-Port': 1 },
@@ -1267,8 +1267,8 @@ The simplest way to run a database-backed RADIUS server:
 
 ```ts
 import knex from 'knex';
-import { RemoteHost, Dictionary } from 'tsrad';
-import { DatabaseServer, createSchema } from 'tsrad/db';
+import { RemoteHost, Dictionary } from '@kowalski21/tsrad';
+import { DatabaseServer, createSchema } from '@kowalski21/tsrad/db';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 const db = knex({
@@ -1307,9 +1307,9 @@ This gives you:
 If you need more control, use the handler factories directly. They return functions compatible with the Server handler signature:
 
 ```ts
-import { Server, RemoteHost, Dictionary } from 'tsrad';
-import { createDbAuth, createDbAcct } from 'tsrad/db';
-import type { RadiusPacket } from 'tsrad';
+import { Server, RemoteHost, Dictionary } from '@kowalski21/tsrad';
+import { createDbAuth, createDbAcct } from '@kowalski21/tsrad/db';
+import type { RadiusPacket } from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 
@@ -1363,7 +1363,7 @@ import {
   findUser, findUserReply, findUserGroups,
   findGroupCheck, findGroupReply,
   evaluateOp,
-} from 'tsrad/db';
+} from '@kowalski21/tsrad/db';
 
 // In a custom handler
 async function myAuthHandler(this: Server, pkt: RadiusPacket) {
@@ -1439,8 +1439,8 @@ SQLite is ideal for local development and testing:
 
 ```ts
 import knex from 'knex';
-import { RemoteHost, Dictionary } from 'tsrad';
-import { DatabaseServer, createSchema } from 'tsrad/db';
+import { RemoteHost, Dictionary } from '@kowalski21/tsrad';
+import { DatabaseServer, createSchema } from '@kowalski21/tsrad/db';
 
 const db = knex({
   client: 'better-sqlite3',
@@ -1500,7 +1500,7 @@ server.run();
 ### Timeout handling
 
 ```ts
-import { Client, Timeout } from 'tsrad';
+import { Client, Timeout } from '@kowalski21/tsrad';
 
 const client = new Client({
   server: '192.168.1.1',
@@ -1561,7 +1561,7 @@ import {
   Server, Client, RemoteHost, Dictionary,
   AccessAccept, AccessReject, AccountingResponse,
   type RadiusPacket,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 const dict = new Dictionary('/usr/share/freeradius/dictionary');
 
@@ -1649,7 +1649,7 @@ import {
   encodeString, encodeAddress, encodeInteger, encodeInteger64,
   encodeDate, encodeOctets, encodeIPv6Address, encodeIPv6Prefix,
   encodeAscendBinary,
-} from 'tsrad';
+} from '@kowalski21/tsrad';
 
 // string
 encodeAttr('string', 'hello');                    // Buffer<68656c6c6f>

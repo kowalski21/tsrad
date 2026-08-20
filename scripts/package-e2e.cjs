@@ -10,6 +10,8 @@ const packageJson = require(path.join(projectDir, 'package.json'));
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tsrad-package-e2e-'));
 const consumerDir = path.join(tempDir, 'consumer');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const packageName = packageJson.name;
+const packageSlug = packageName.replace(/^@/, '').replaceAll('/', '-');
 
 async function main() {
   try {
@@ -17,7 +19,7 @@ async function main() {
       cwd: projectDir,
       stdio: 'ignore',
     });
-    const tarball = path.join(tempDir, `${packageJson.name}-${packageJson.version}.tgz`);
+    const tarball = path.join(tempDir, `${packageSlug}-${packageJson.version}.tgz`);
     fs.mkdirSync(consumerDir);
     execFileSync(npm, ['install', '--dry-run=false', '--prefix', consumerDir, tarball, '--ignore-scripts'], {
       stdio: 'inherit',
@@ -25,7 +27,7 @@ async function main() {
 
     // Core TypeScript consumers must not need the optional Knex peer.
     fs.writeFileSync(path.join(consumerDir, 'smoke.ts'), [
-      "import { Client, Dictionary } from 'tsrad';",
+      `import { Client, Dictionary } from '${packageName}';`,
       "const dict = Dictionary.fromText('ATTRIBUTE User-Name 1 string');",
       "const client = new Client({ server: '127.0.0.1', secret: Buffer.from('x'), dict });",
       'client.close();',
@@ -41,13 +43,13 @@ async function main() {
     // ESM consumers should receive Node's named exports from the CJS package.
     execFileSync(process.execPath, [
       '--input-type=module', '--eval',
-      "import { Dictionary } from 'tsrad'; if (!Dictionary) process.exit(1);",
+      `import { Dictionary } from '${packageName}'; if (!Dictionary) process.exit(1);`,
     ], { cwd: consumerDir, stdio: 'ignore' });
 
     const consumerRequire = createRequire(path.join(consumerDir, 'consumer.cjs'));
-    const tsrad = consumerRequire('tsrad');
-    assert.equal(typeof consumerRequire('tsrad/db').createSchema, 'function');
-    assert.equal(consumerRequire('tsrad/package.json').name, 'tsrad');
+    const tsrad = consumerRequire(packageName);
+    assert.equal(typeof consumerRequire(`${packageName}/db`).createSchema, 'function');
+    assert.equal(consumerRequire(`${packageName}/package.json`).name, packageName);
     const {
       Server, Client, RemoteHost, Dictionary,
       AccessAccept, AccountingResponse, CoAACK,
